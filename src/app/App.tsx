@@ -1,0 +1,287 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import EditorWithHighlight from '../ui/EditorWithHighlight';
+import Toolbar from '../ui/Toolbar';
+import IOPanel from '../ui/IOPanel';
+import StackPanel from '../ui/StackPanel';
+import { DEFAULT_CODE } from './state';
+import { decodeFromHash, encodeToHash } from '../runtime/ts/serializer';
+
+// 履歴
+import HistoryPanel from '../ui/HistoryPanel';
+import { getLastOpen, getEntry } from '../runtime/ts/history';
+
+// 入力モーダル
+import InputModal from '../ui/InputModal';
+
+// @ts-ignore - Vite の worker ローダ
+import RunnerWorker from '../workers/run.worker?worker';
+
+function parseInputQueue(input: string): number[] {
+  // スペース区切りの整数、文字列は素直に charCode に展開
+  // 例: "65 10 ABC" => [65,10,65,66,67]
+  const out: number[] = [];
+  const parts = input.split(/\s+/).filter(Boolean);
+  for (const p of parts) {
+    if (/^[+-]?\d+$/.test(p)) out.push(parseInt(p, 10));
+    else for (const ch of p) out.push(ch.charCodeAt(0));
+  }
+  return out;
+}
+
+export default function App() {
+  const [code, setCode] = useState<string>(() => {
+    // URLハッシュ優先、次に最後に開いた履歴、なければデフォルト
+    const byHash = decodeFromHash(location.hash);
+    if (byHash != null) return byHash;
+    const last = getLastOpen();
+    if (last) {
+      const e = getEntry(last);
+      if (e?.code) return e.code;
+    }
+    return DEFAULT_CODE;
+  });
+
+  const [textOut, setTextOut] = useState('');
+  const [numOut, setNumOut] = useState<number[]>([]);
+  const [errorOut, setErrorOut] = useState('');
+  const [stack, setStack] = useState<number[]>([]);
+  const [pc, setPC] = useState({ x: 0, y: 0 });
+  const [dir, setDir] = useState({ dx: 1, dy: 0 });
+  const [status, setStatus] = useState('idle');
+  const [exitCode, setExitCode] = useState<number | null>(null);
+  const [running, setRunning] = useState(false);
+  const runningRef = useRef(running);
+  const [speed, setSpeed] = useState(2000);
+  const speedRef = useRef(2000);
+  const [inputQueueText, setInputQueueText] = useState('');
+  const [mode, setMode] = useState<'edit' | 'interpreter'>('edit');
+
+  // ファイル名読み込み用
+  const [filename, setFilename] = useState('');
+
+  // 履歴パネル
+  const [showHistory, setShowHistory] = useState(false);
+
+  // 入力モーダル
+  const [showInputModal, setShowInputModal] = useState(false);
+
+  const worker = useMemo(() => new RunnerWorker() as Worker, []);
+  const rafRef = useRef<number | null>(null);
+
+  // Initialize worker with code on mount
+  useEffect(() => {
+    worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
+  }, [worker]);
+
+  const updateRunning = useCallback((next: boolean) => {
+    runningRef.current = next;
+    setRunning(next);
+  }, []);
+
+  const updateSpeed = useCallback((next: number) => {
+    speedRef.current = next;
+    setSpeed(next);
+  }, []);
+
+  useEffect(() => {
+    function onMsg(e: MessageEvent<any>) {
+      const s = e.data;
+      if (!s) return;
+      if (Array.isArray(s.outputs)) {
+        for (const o of s.outputs) {
+          if (o.kind === 'text') setTextOut(prev => prev + o.ch);
+          else setNumOut(prev => [...prev, o.value]);
+        }
+      }
+      if (s.error) {
+        setErrorOut(prev => prev + s.error + '\n');
+      }
+      setStack(s.stack ?? []);
+      setPC({ x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 });
+      setDir({ dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 });
+      if (s.halted) { 
+        setStatus('halted'); 
+        setExitCode(s.exitCode ?? 0);
+        updateRunning(false); 
+        stopLoop(); 
+      }
+      else if (s.waitingInput) { setStatus('waiting-input'); updateRunning(false); stopLoop(); }
+      else setStatus(runningRef.current ? 'running' : 'idle');
+    }
+    worker.addEventListener('message', onMsg);
+    return () => { worker.removeEventListener('message', onMsg); };
+  }, [worker, updateRunning]);
+
+  useEffect(() => {
+    // URL 共有対応
+    const onHash = () => {
+      const decoded = decodeFromHash(location.hash);
+      if (decoded != null) setCode(decoded);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const startLoop = () => {
+    if (rafRef.current != null) return;
+    const tick = () => {
+      worker.postMessage({ type: 'run', steps: speedRef.current });
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  };
+  const stopLoop = () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    worker.postMessage({ type: 'stop' });
+  };
+
+  const onRun = () => {
+    setTextOut(''); 
+    setNumOut([]); 
+    setErrorOut('');
+    setExitCode(null);
+    updateRunning(true);
+    setMode('interpreter');
+    worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
+    startLoop();
+  };
+  const onStop = () => { 
+    updateRunning(false); 
+    stopLoop(); 
+    worker.postMessage({ type: 'reset' }); 
+  };
+  const onStep = () => { 
+    setMode('interpreter');
+    updateRunning(false); 
+    stopLoop(); 
+    worker.postMessage({ type: 'step' }); 
+  };
+  const onShare = () => { const h = encodeToHash(code); history.replaceState(null, '', h); navigator.clipboard?.writeText(location.href); alert('共有URLをクリップボードにコピーしました\n' + location.href); };
+
+  // ファイル名から読み込み
+  const onOpenByFilename = async () => {
+    const name = filename.trim();
+    if (!name) return;
+    // ベースは ./samples/ を想定。相対/絶対パスも許可。
+    const url = name.startsWith('./') || name.startsWith('../') || name.startsWith('/') || /^https?:\/\//.test(name)
+      ? name
+      : `./samples/${name}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const txt = await res.text();
+      setCode(txt);
+    } catch (e: any) {
+      alert(`読み込みに失敗しました: ${url}\n${e?.message ?? e}`);
+    }
+  };
+
+  // 履歴
+  const onSaveSnapshot = () => {
+    setShowHistory(true); // パネルから「＋保存」で現在のコードを保存できます
+  };
+  const onToggleHistory = () => setShowHistory(v => !v);
+
+  // 入力モーダル
+  const onOpenInputModal = () => setShowInputModal(true);
+  const onSaveInput = (newInput: string) => {
+    setInputQueueText(newInput);
+  };
+
+  // モード切り替え
+  const toggleMode = () => {
+    setMode(m => m === 'edit' ? 'interpreter' : 'edit');
+  };
+
+  // 統合された出力文字列
+  const combinedOutput = useMemo(() => {
+    let result = textOut;
+    if (numOut.length > 0) {
+      result += numOut.join(' ');
+    }
+    return result;
+  }, [textOut, numOut]);
+
+  return (
+    <div className="app">
+      <div className="toolbar">
+        <Toolbar
+          onRun={onRun}
+          onStop={onStop}
+          onStep={onStep}
+          onShare={onShare}
+          running={running}
+          status={status}
+          speed={speed}
+          setSpeed={updateSpeed}
+          inputQueue={inputQueueText}
+          setInputQueue={setInputQueueText}
+
+          filename={filename}
+          setFilename={setFilename}
+          onOpenByFilename={onOpenByFilename}
+
+          onSaveSnapshot={onSaveSnapshot}
+          onToggleHistory={onToggleHistory}
+
+          onOpenInputModal={onOpenInputModal}
+
+          mode={mode}
+          onToggleMode={toggleMode}
+
+          loadSample={async (name: string) => {
+            const map: Record<string, string> = { hello: 'hello_world.bf', cat: 'cat.bf', sieve: 'sieve.bf' };
+            const file = map[name]; if (!file) return;
+            const res = await fetch(`./samples/${file}`); const txt = await res.text(); setCode(txt);
+          }}
+        />
+      </div>
+
+      <div className="main-content">
+        <div className="editor-section">
+          <div className="editor-container">
+            <EditorWithHighlight code={code} onChange={setCode} pc={pc} mode={mode} />
+          </div>
+        </div>
+
+        <div className="io-section">
+          <IOPanel title="📥 入力 (stdin)" content={inputQueueText} autoScroll={false} />
+          <IOPanel title="📤 出力 (stdout)" content={combinedOutput} />
+          <IOPanel title="⚠️ エラー出力 (stderr)" content={errorOut} />
+          <StackPanel stack={stack} />
+        </div>
+      </div>
+
+      <div className="status-bar">
+        <div>
+          状態: <span className={`badge ${status === 'halted' ? 'ok' : status === 'waiting-input' ? 'err' : ''}`}>{status}</span>
+        </div>
+        <div>
+          PC: ({pc.x}, {pc.y}) | 方向: [{dir.dx}, {dir.dy}]
+        </div>
+        {exitCode !== null && (
+          <div>
+            終了コード: <span className={`badge ${exitCode === 0 ? 'ok' : 'err'}`}>{exitCode}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 履歴モーダル */}
+      <HistoryPanel
+        visible={showHistory}
+        onClose={() => setShowHistory(false)}
+        currentCode={code}
+        onLoadCode={(c) => setCode(c)}
+      />
+
+      {/* 入力モーダル */}
+      <InputModal
+        visible={showInputModal}
+        onClose={() => setShowInputModal(false)}
+        inputQueue={inputQueueText}
+        onSave={onSaveInput}
+      />
+    </div>
+  );
+}

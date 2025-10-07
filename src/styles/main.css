@@ -1,0 +1,224 @@
+:root {
+    --bg: #0b0c0e;
+    --fg: #eaeef2;
+    --muted: #9aa4af;
+    --panel: #15181c;
+    --accent: #7cc4ff;
+    --error: #ff6b6b;
+    --ok: #5bd19a;
+    --mono-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sans-font: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans-font);
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.toolbar { 
+    flex-shrink: 0;
+    padding: 8px; 
+    background: var(--panel); 
+    border-bottom: 1px solid #222; 
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.editor-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    position: relative;
+}
+
+.editor-container {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.io-section {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.io-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-top: 1px solid #222;
+}
+
+.io-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #0f1216;
+    border-bottom: 1px solid #222;
+}
+
+.io-content {
+    font-family: var(--mono-font);
+    font-size: 13px;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 5.5em; /* ~5 lines */
+    min-height: 1.5em;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #0a0b0d;
+}
+
+.io-content:empty::before {
+    content: '(empty)';
+    color: var(--muted);
+    font-style: italic;
+}
+
+.stack-content {
+    font-family: var(--mono-font);
+    font-size: 13px;
+    padding: 8px 10px;
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: 5.5em;
+    min-height: 1.5em;
+    background: #0a0b0d;
+    display: flex;
+    gap: 6px;
+}
+
+.stack-content:empty::before {
+    content: '(empty)';
+    color: var(--muted);
+    font-style: italic;
+}
+
+.stack-item {
+    display: inline-block;
+    background: #111418;
+    border: 1px solid #2a2f36;
+    border-radius: 4px;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+.status-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 6px 10px;
+    border-top: 1px solid #222;
+    background: var(--panel);
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* PC Highlight overlay for interpreter mode */
+.pc-highlight {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(124, 196, 255, 0.25);
+    border: 2px solid var(--accent);
+    z-index: 10;
+    transition: all 0.1s ease;
+}
+
+/* Mode toggle */
+.mode-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    border: 1px solid;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mode-badge.edit {
+    border-color: var(--ok);
+    color: var(--ok);
+}
+
+.mode-badge.interp {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+@media (max-width: 768px) {
+    .toolbar .row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .io-content {
+        font-size: 12px;
+    }
+    
+    .stack-content {
+        font-size: 12px;
+    }
+}
+
+.panel {
+    padding: 8px;
+    background: var(--panel);
+}
+
+button, select, input, textarea {
+    background: #111418;
+    color: var(--fg);
+    border: 1px solid #2a2f36;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 14px;
+}
+button { cursor: pointer; }
+button.primary { border-color: var(--accent); }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.mono, pre, code {
+    font-family: var(--mono-font);
+}
+
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > * { margin-right: 4px; }
+.hr { height: 1px; background: #222; margin: 8px 0; }
+
+.badge { 
+    font-size: 12px; 
+    padding: 3px 8px; 
+    border-radius: 12px; 
+    border: 1px solid #333;
+    font-weight: 500;
+}
+.badge.ok { border-color: var(--ok); color: var(--ok); }
+.badge.err { border-color: var(--error); color: var(--error); }
