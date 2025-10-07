@@ -192,7 +192,7 @@ body {
     }
     
     /* Reduce button/input sizes */
-    button, select, input, textarea {
+    .toolbar button, .toolbar select, .toolbar input, .toolbar textarea {
         font-size: 12px;
         padding: 4px 8px;
     }
