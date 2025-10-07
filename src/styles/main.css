@@ -174,17 +174,97 @@ body {
 }
 
 @media (max-width: 768px) {
-    .toolbar .row {
-        flex-direction: column;
-        align-items: stretch;
+    /* Reduce toolbar padding */
+    .toolbar {
+        padding: 6px;
+        max-height: 35vh;
+        overflow-y: auto;
     }
     
-    .io-content {
+    /* Make toolbar items more compact */
+    .toolbar .row {
+        gap: 4px;
+        margin-left: 0 !important;
+    }
+    
+    .toolbar .row > * {
+        margin-right: 2px;
+    }
+    
+    /* Reduce button/input sizes */
+    button, select, input, textarea {
         font-size: 12px;
+        padding: 4px 8px;
+    }
+    
+    /* Reduce label text size */
+    .toolbar label {
+        font-size: 11px;
+    }
+    
+    /* Make speed input narrower */
+    .toolbar input[type="number"] {
+        width: 70px !important;
+    }
+    
+    /* Make filename input narrower */
+    .toolbar input[type="text"] {
+        width: 120px !important;
+    }
+    
+    /* Make stdin button more compact */
+    .toolbar button[title*="標準入力"] {
+        max-width: 100px !important;
+        font-size: 11px !important;
+    }
+    
+    /* Hide less critical elements on very small screens */
+    .toolbar .hr {
+        display: none;
+    }
+    
+    /* Status badge more compact */
+    .badge {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+    
+    /* Mode badge more compact */
+    .mode-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+    
+    /* IO and Stack panels more compact */
+    .io-content {
+        font-size: 11px;
+        padding: 6px 8px;
+        max-height: 4em;
     }
     
     .stack-content {
-        font-size: 12px;
+        font-size: 11px;
+        padding: 6px 8px;
+        max-height: 4em;
+    }
+    
+    /* Stack item more compact */
+    .stack-item {
+        padding: 2px 6px;
+        font-size: 11px;
+    }
+    
+    /* Status bar more compact */
+    .status-bar {
+        font-size: 10px;
+        padding: 4px 8px;
+        gap: 4px;
+    }
+    
+    /* IO panel headers more compact */
+    .io-header {
+        padding: 4px 8px;
+        font-size: 11px;
     }
 }
 
