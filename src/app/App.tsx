@@ -17,13 +17,11 @@ import InputModal from '../ui/InputModal';
 import RunnerWorker from '../workers/run.worker?worker';
 
 function parseInputQueue(input: string): number[] {
-  // スペース区切りの整数、文字列は素直に charCode に展開
-  // 例: "65 10 ABC" => [65,10,65,66,67]
+  // 入力文字列をそのまま charCode に変換
+  // すべての文字（スペース、改行含む）を保持
   const out: number[] = [];
-  const parts = input.split(/\s+/).filter(Boolean);
-  for (const p of parts) {
-    if (/^[+-]?\d+$/.test(p)) out.push(parseInt(p, 10));
-    else for (const ch of p) out.push(ch.charCodeAt(0));
+  for (const ch of input) {
+    out.push(ch.charCodeAt(0));
   }
   return out;
 }
@@ -55,9 +53,7 @@ export default function App() {
   const speedRef = useRef(2000);
   const [inputQueueText, setInputQueueText] = useState('');
   const [mode, setMode] = useState<'edit' | 'interpreter'>('edit');
-
-  // ファイル名読み込み用
-  const [filename, setFilename] = useState('');
+  const [runtimeGrid, setRuntimeGrid] = useState<number[][] | null>(null);
 
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
@@ -97,6 +93,9 @@ export default function App() {
       }
       if (s.error) {
         setErrorOut(prev => prev + s.error + '\n');
+      }
+      if (s.grid) {
+        setRuntimeGrid(s.grid);
       }
       setStack(s.stack ?? []);
       setPC({ x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 });
@@ -177,21 +176,8 @@ export default function App() {
   const onShare = () => { const h = encodeToHash(code); history.replaceState(null, '', h); navigator.clipboard?.writeText(location.href); alert('共有URLをクリップボードにコピーしました\n' + location.href); };
 
   // ファイル名から読み込み
-  const onOpenByFilename = async () => {
-    const name = filename.trim();
-    if (!name) return;
-    // ベースは ./samples/ を想定。相対/絶対パスも許可。
-    const url = name.startsWith('./') || name.startsWith('../') || name.startsWith('/') || /^https?:\/\//.test(name)
-      ? name
-      : `./samples/${name}`;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const txt = await res.text();
-      setCode(txt);
-    } catch (e: any) {
-      alert(`読み込みに失敗しました: ${url}\n${e?.message ?? e}`);
-    }
+  const onOpenFile = (content: string) => {
+    setCode(content);
   };
 
   // 履歴
@@ -235,9 +221,7 @@ export default function App() {
           inputQueue={inputQueueText}
           setInputQueue={setInputQueueText}
 
-          filename={filename}
-          setFilename={setFilename}
-          onOpenByFilename={onOpenByFilename}
+          onOpenFile={onOpenFile}
 
           onSaveSnapshot={onSaveSnapshot}
           onToggleHistory={onToggleHistory}
@@ -270,7 +254,12 @@ export default function App() {
       <div className="main-content">
         <div className="editor-section">
           <div className="editor-container">
-            <EditorWithHighlight code={code} onChange={setCode} pc={pc} mode={mode} />
+            <EditorWithHighlight 
+              code={mode === 'interpreter' && runtimeGrid ? runtimeGrid.map(r => String.fromCharCode(...r)).join('\n') : code} 
+              onChange={setCode} 
+              pc={pc} 
+              mode={mode} 
+            />
           </div>
         </div>
 
