@@ -16,6 +16,38 @@ import InputModal from '../ui/InputModal';
 // @ts-ignore - Vite の worker ローダ
 import RunnerWorker from '../workers/run.worker?worker';
 
+// State persistence
+const APP_STATE_KEY = 'befunge.app.state';
+const APP_STATE_COOKIE = 'befunge_app_state_ts';
+
+function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter') {
+  try {
+    const state = { code, inputQueue, mode, timestamp: Date.now() };
+    localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
+    // Also set a cookie with just the timestamp for faster checking
+    const d = new Date();
+    d.setTime(d.getTime() + 365 * 24 * 60 * 60 * 1000);
+    document.cookie = `${APP_STATE_COOKIE}=${Date.now()};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+  } catch (e) {
+    console.warn('Failed to save app state', e);
+  }
+}
+
+function loadAppState(): { code: string; inputQueue: string; mode: 'edit' | 'interpreter' } | null {
+  try {
+    const raw = localStorage.getItem(APP_STATE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    // Check if state is reasonably recent (within last 30 days)
+    if (state.timestamp && Date.now() - state.timestamp < 30 * 24 * 60 * 60 * 1000) {
+      return state;
+    }
+  } catch (e) {
+    console.warn('Failed to load app state', e);
+  }
+  return null;
+}
+
 function parseInputQueue(input: string): number[] {
   // 入力文字列をそのまま charCode に変換
   // すべての文字（スペース、改行含む）を保持
@@ -27,10 +59,14 @@ function parseInputQueue(input: string): number[] {
 }
 
 export default function App() {
+  // Load saved app state
+  const savedState = loadAppState();
+  
   const [code, setCode] = useState<string>(() => {
-    // URLハッシュ優先、次に最後に開いた履歴、なければデフォルト
+    // URLハッシュ優先、次にlocalStorageの保存状態、最後に開いた履歴、なければデフォルト
     const byHash = decodeFromHash(location.hash);
     if (byHash != null) return byHash;
+    if (savedState?.code) return savedState.code;
     const last = getLastOpen();
     if (last) {
       const e = getEntry(last);
@@ -51,8 +87,8 @@ export default function App() {
   const runningRef = useRef(running);
   const [speed, setSpeed] = useState(2000);
   const speedRef = useRef(2000);
-  const [inputQueueText, setInputQueueText] = useState('');
-  const [mode, setMode] = useState<'edit' | 'interpreter'>('edit');
+  const [inputQueueText, setInputQueueText] = useState(savedState?.inputQueue || '');
+  const [mode, setMode] = useState<'edit' | 'interpreter'>(savedState?.mode || 'edit');
   const [runtimeGrid, setRuntimeGrid] = useState<number[][] | null>(null);
 
   // 履歴パネル
@@ -123,6 +159,14 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
+  // Save app state periodically when code, inputQueue, or mode changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      saveAppState(code, inputQueueText, mode);
+    }, 500); // Debounce by 500ms to avoid too frequent saves
+    return () => clearTimeout(timeoutId);
+  }, [code, inputQueueText, mode]);
+
   const startLoop = () => {
     if (rafRef.current != null) return;
     lastTickTime.current = performance.now();
@@ -166,11 +210,19 @@ export default function App() {
     updateRunning(false); 
     stopLoop(); 
     worker.postMessage({ type: 'reset' }); 
+    // Clear output states on reset
+    setTextOut('');
+    setNumOut([]);
+    setErrorOut('');
+    setExitCode(null);
+    setStatus('idle');
   };
   const onStep = () => { 
     setMode('interpreter');
     updateRunning(false); 
     stopLoop(); 
+    // Load current code when stepping from edit mode
+    worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
     worker.postMessage({ type: 'step' }); 
   };
   const onShare = () => { const h = encodeToHash(code); history.replaceState(null, '', h); navigator.clipboard?.writeText(location.href); alert('共有URLをクリップボードにコピーしました\n' + location.href); };
@@ -194,7 +246,14 @@ export default function App() {
 
   // モード切り替え
   const toggleMode = () => {
-    setMode(m => m === 'edit' ? 'interpreter' : 'edit');
+    setMode(m => {
+      const newMode = m === 'edit' ? 'interpreter' : 'edit';
+      // When switching to interpreter mode, load the current edit code
+      if (newMode === 'interpreter') {
+        worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
+      }
+      return newMode;
+    });
   };
 
   // 統合された出力文字列
