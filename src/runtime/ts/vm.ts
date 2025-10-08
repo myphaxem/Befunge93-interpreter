@@ -7,6 +7,7 @@ export type VMState = {
   pc: { x: number; y: number; dx: number; dy: number };
   stack: number[];
   exitCode?: number;
+  grid?: number[][]; // Include grid for dynamic updates
 };
 
 export class RNG {
@@ -47,7 +48,7 @@ export class BefungeVM {
 
   peek(n = 0) { const i = this.stack.length - 1 - n; return i >= 0 ? this.stack[i]! : 0; }
   pop() { return this.stack.pop() ?? 0; }
-  push(v: number) { this.stack.push(v|0); } // signed 32-bit integer
+  push(v: number) { this.stack.push(Math.trunc(v)); } // 64-bit signed integer (JavaScript number)
 
   private move() {
     this.x = (this.x + this.dx + GRID_W) % GRID_W;
@@ -56,13 +57,13 @@ export class BefungeVM {
 
   private outText(ch: number) { this.outputs.push({ kind: 'text', ch: String.fromCharCode(ch & 0xff) }); }
   private outNum(v: number) { 
-    this.outputs.push({ kind: 'number', value: (v|0) }); 
+    this.outputs.push({ kind: 'number', value: Math.trunc(v) }); 
     this.outputs.push({ kind: 'text', ch: ' ' }); // space after number per reference implementation
   }
 
-  private needInt(): number | undefined {
-    if (this.inputQueue.length === 0) return undefined;
-    return this.inputQueue.shift();
+  private needInt(): number {
+    if (this.inputQueue.length === 0) return -1; // EOF
+    return this.inputQueue.shift()!;
   }
 
   step(): VMState {
@@ -138,28 +139,54 @@ export class BefungeVM {
       case 46: { const a = this.pop(); this.outNum(a); this.move(); break; } // '.'
       case 38: { // '&' int input
         const v = this.needInt();
-        if (v === undefined) { this.waitingInput = true; return this.snapshot(); }
         this.push(v); this.move(); break;
       }
       case 126: { // '~' char input
         const v = this.needInt();
-        if (v === undefined) { this.waitingInput = true; return this.snapshot(); }
-        this.push(v & 0xff); this.move(); break;
+        // Don't mask EOF (-1), otherwise mask to byte
+        this.push(v === -1 ? -1 : v & 0xff); 
+        this.move(); break;
       }
 
       // storage
       case 103: { // 'g'
         const y = this.pop(), x = this.pop();
-        const yy = ((y|0) % GRID_H + GRID_H) % GRID_H;
-        const xx = ((x|0) % GRID_W + GRID_W) % GRID_W;
-        this.push(this.grid[yy]![xx]!);
+        const xx = Math.trunc(x);
+        const yy = Math.trunc(y);
+        // Check if within valid Befunge-93 bounds [0,79]x[0,24]
+        if (xx < 0 || xx > 79 || yy < 0 || yy > 24) {
+          this.halted = true;
+          this.exitCode = 1;
+          console.error(`Runtime error: g command accessed out of bounds (${xx}, ${yy})`);
+          break;
+        }
+        // Access within current grid or return space if beyond grid size
+        if (yy < this.grid.length && xx < this.grid[yy]!.length) {
+          this.push(this.grid[yy]![xx]!);
+        } else {
+          this.push(32); // space
+        }
         this.move(); break;
       }
       case 112: { // 'p'
         const y = this.pop(), x = this.pop(), v = this.pop();
-        const yy = ((y|0) % GRID_H + GRID_H) % GRID_H;
-        const xx = ((x|0) % GRID_W + GRID_W) % GRID_W;
-        this.grid[yy]![xx] = v & 0xff;
+        const xx = Math.trunc(x);
+        const yy = Math.trunc(y);
+        // Check if within valid Befunge-93 bounds [0,79]x[0,24]
+        if (xx < 0 || xx > 79 || yy < 0 || yy > 24) {
+          this.halted = true;
+          this.exitCode = 1;
+          console.error(`Runtime error: p command accessed out of bounds (${xx}, ${yy})`);
+          break;
+        }
+        // Expand grid if necessary
+        while (this.grid.length <= yy) {
+          this.grid.push(Array(80).fill(32));
+        }
+        while (this.grid[yy]!.length <= xx) {
+          this.grid[yy]!.push(32);
+        }
+        this.grid[yy]![xx] = Math.trunc(v) & 0xff;
         this.move(); break;
       }
 
@@ -176,7 +203,8 @@ export class BefungeVM {
       waitingInput: this.waitingInput,
       pc: { x: this.x, y: this.y, dx: this.dx, dy: this.dy },
       stack: [...this.stack],
-      exitCode: this.exitCode
+      exitCode: this.exitCode,
+      grid: this.grid.map(row => [...row]) // Deep copy grid
     };
   }
 }

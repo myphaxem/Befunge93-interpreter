@@ -53,6 +53,7 @@ export default function App() {
   const speedRef = useRef(2000);
   const [inputQueueText, setInputQueueText] = useState('');
   const [mode, setMode] = useState<'edit' | 'interpreter'>('edit');
+  const [runtimeGrid, setRuntimeGrid] = useState<number[][] | null>(null);
 
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
@@ -92,6 +93,9 @@ export default function App() {
       }
       if (s.error) {
         setErrorOut(prev => prev + s.error + '\n');
+      }
+      if (s.grid) {
+        setRuntimeGrid(s.grid);
       }
       setStack(s.stack ?? []);
       setPC({ x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 });
@@ -250,7 +254,12 @@ export default function App() {
       <div className="main-content">
         <div className="editor-section">
           <div className="editor-container">
-            <EditorWithHighlight code={code} onChange={setCode} pc={pc} mode={mode} />
+            <EditorWithHighlight 
+              code={mode === 'interpreter' && runtimeGrid ? runtimeGrid.map(r => String.fromCharCode(...r)).join('\n') : code} 
+              onChange={setCode} 
+              pc={pc} 
+              mode={mode} 
+            />
           </div>
         </div>
 
