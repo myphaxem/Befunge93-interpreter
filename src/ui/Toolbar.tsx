@@ -58,7 +58,15 @@ export default function Toolbar(props: {
 
       <div className="row" style={{ marginLeft: 'auto' }}>
         <label>速度: </label>
-        <input type="number" min={10} max={100000} step={10} value={speed} onChange={e => setSpeed(parseInt(e.target.value || '1000'))} style={{ width: 100 }} />
+        <input 
+          type="range" 
+          min={1} 
+          max={10000} 
+          value={speed} 
+          onChange={e => setSpeed(parseInt(e.target.value))} 
+          style={{ width: 150 }} 
+          title={`${speed} ステップ/秒`}
+        />
 
         <label>stdin:</label>
         <button 
