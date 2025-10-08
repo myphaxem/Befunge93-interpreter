@@ -233,7 +233,19 @@ export default function App() {
           loadSample={async (name: string) => {
             const map: Record<string, string> = { hello: 'hello_world.bf', cat: 'cat.bf', sieve: 'sieve.bf' };
             const file = map[name]; if (!file) return;
-            const res = await fetch(`./samples/${file}`); const txt = await res.text(); setCode(txt);
+            try {
+              const res = await fetch(`./samples/${file}`);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const contentType = res.headers.get('content-type');
+              // Ensure we're not getting HTML when we expect a text file
+              if (contentType && contentType.includes('text/html')) {
+                throw new Error('Received HTML instead of .bf file');
+              }
+              const txt = await res.text();
+              setCode(txt);
+            } catch (e: any) {
+              alert(`サンプル読み込みに失敗しました: ${file}\n${e?.message ?? e}`);
+            }
           }}
         />
       </div>
@@ -246,10 +258,31 @@ export default function App() {
         </div>
 
         <div className="io-section">
-          <IOPanel title="📥 入力 (stdin)" content={inputQueueText} autoScroll={false} />
-          <IOPanel title="📤 出力 (stdout)" content={combinedOutput} />
-          <IOPanel title="⚠️ エラー出力 (stderr)" content={errorOut} />
+          {/* Stack at top */}
           <StackPanel stack={stack} />
+          
+          {/* Input and Output side by side */}
+          <div style={{ display: 'flex', gap: 0 }}>
+            <IOPanel title="📥 入力 (stdin)" content={inputQueueText} autoScroll={false} />
+            <IOPanel title="📤 出力 (stdout)" content={combinedOutput} />
+          </div>
+          
+          {/* Exit code and Error side by side */}
+          <div style={{ display: 'flex', gap: 0 }}>
+            <div className="io-panel" style={{ flex: 1 }}>
+              <div className="io-header">
+                <span>終了コード</span>
+              </div>
+              <div className="io-content">
+                {exitCode !== null ? (
+                  <span className={`badge ${exitCode === 0 ? 'ok' : 'err'}`}>{exitCode}</span>
+                ) : (
+                  <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>(未終了)</span>
+                )}
+              </div>
+            </div>
+            <IOPanel title="⚠️ エラー出力 (stderr)" content={errorOut} />
+          </div>
         </div>
       </div>
 
@@ -260,11 +293,6 @@ export default function App() {
         <div>
           PC: ({pc.x}, {pc.y}) | 方向: [{dir.dx}, {dir.dy}]
         </div>
-        {exitCode !== null && (
-          <div>
-            終了コード: <span className={`badge ${exitCode === 0 ? 'ok' : 'err'}`}>{exitCode}</span>
-          </div>
-        )}
       </div>
 
       {/* 履歴モーダル */}

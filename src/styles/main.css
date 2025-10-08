@@ -67,6 +67,8 @@ body {
     flex-direction: column;
     background: var(--panel);
     border-top: 1px solid #222;
+    flex: 1;
+    min-width: 0;
 }
 
 .io-header {
