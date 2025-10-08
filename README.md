@@ -2,6 +2,8 @@
 
 Befunge-93プログラミング言語のWebベースのエディタ＋インタープリタです。
 
+🌐 **アクセス:** https://befunge93-interpreter.web.app/
+
 ## 機能
 
 - **リアルタイムエディタ**: 構文ハイライト付きのコードエディタ
@@ -10,11 +12,9 @@ Befunge-93プログラミング言語のWebベースのエディタ＋インタ�
 - **I/O**: 標準入力・標準出力のサポート
 - **履歴管理**: コードの保存・読み込み機能
 - **共有機能**: URLでコードを共有
-- **GitHubログイン**: Firebase Authenticationを使用したログイン機能（オプション）
+- **GitHubログイン**: Firebase Authenticationを使用したログイン機能
 
 ## セットアップ
-
-### 基本的な使用方法
 
 ```bash
 # 依存関係のインストール
@@ -26,14 +26,6 @@ npm run dev
 # ビルド
 npm run build
 ```
-
-### Firebase Authentication（オプション）
-
-GitHubアカウントでのログインとデータ同期を有効にするには、Firebase Authenticationの設定が必要です。
-
-詳細は [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) を参照してください。
-
-**注意**: Firebase設定がなくてもアプリケーションは正常に動作します。ログイン機能は表示されず、データはローカルストレージとCookieに保存されます。
 
 ## 使用方法
 
@@ -54,7 +46,7 @@ GitHubアカウントでのログインとデータ同期を有効にするに�
 - React + TypeScript
 - Vite
 - Monaco Editor
-- Firebase Authentication + Firestore (オプション)
+- Firebase Authentication + Firestore
 - Web Workers (インタープリタ実行)
 
 ## ライセンス
