@@ -7,3 +7,6 @@ coverage
 /build
 /dist
 .tmp
+.env
+.env.local
+.env.*.local
