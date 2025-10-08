@@ -45,13 +45,13 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    min-height: calc(5 * 19px + 40px); /* Minimum 5 lines (19px line height) + padding */
     position: relative;
 }
 
 .editor-container {
     flex: 1;
-    min-height: 0;
+    min-height: calc(5 * 19px + 40px); /* Match parent minimum */
     position: relative;
 }
 
@@ -314,6 +314,8 @@ input[type="range"] {
     border-radius: 3px;
     outline: none;
     cursor: pointer;
+    margin: 0;
+    padding: 0;
 }
 
 /* Webkit browsers (Chrome, Safari, Edge) */
@@ -332,6 +334,7 @@ input[type="range"]::-webkit-slider-thumb {
     width: 16px;
     border-radius: 50%;
     cursor: pointer;
+    margin-top: -5px;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {

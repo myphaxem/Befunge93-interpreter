@@ -48,7 +48,9 @@ self.onmessage = (e: MessageEvent<Msg>) => {
       if (!vm) break;
       const s = vm.step();
       const outs = vm.outputs.splice(0);
-      const error = s.exitCode === 136 ? 'Runtime error: division/modulo by zero' : undefined;
+      let error: string | undefined;
+      if (s.exitCode === 136) error = 'Runtime error: division/modulo by zero';
+      else if (s.exitCode === 1) error = 'Runtime error: p/g command out of bounds';
       // @ts-ignore
       (self as any).postMessage(toState(s, outs, error));
       break;
@@ -61,13 +63,17 @@ self.onmessage = (e: MessageEvent<Msg>) => {
         const s = vm.step();
         if (vm.outputs.length) {
           // flush バッファ（UI を更新しつつスムーズに）
-          const error = s.exitCode === 136 ? 'Runtime error: division/modulo by zero' : undefined;
+          let error: string | undefined;
+          if (s.exitCode === 136) error = 'Runtime error: division/modulo by zero';
+          else if (s.exitCode === 1) error = 'Runtime error: p/g command out of bounds';
           // @ts-ignore
           (self as any).postMessage(toState(s, vm.outputs.splice(0), error));
         }
         if (s.halted || s.waitingInput || !running) break;
       }
-      const error = vm.exitCode === 136 ? 'Runtime error: division/modulo by zero' : undefined;
+      let error: string | undefined;
+      if (vm.exitCode === 136) error = 'Runtime error: division/modulo by zero';
+      else if (vm.exitCode === 1) error = 'Runtime error: p/g command out of bounds';
       // @ts-ignore
       (self as any).postMessage(toState(vm.snapshot(), vm.outputs.splice(0), error));
       break;
