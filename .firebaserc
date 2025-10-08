@@ -1,0 +1,5 @@
+{
+  "projects": {
+    "default": "befunge93-interpreter"
+  }
+}
