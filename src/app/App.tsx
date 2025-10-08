@@ -8,10 +8,25 @@ import { decodeFromHash, encodeToHash } from '../runtime/ts/serializer';
 
 // 履歴
 import HistoryPanel from '../ui/HistoryPanel';
-import { getLastOpen, getEntry } from '../runtime/ts/history';
+import { getLastOpen, getEntry, setCurrentUserId } from '../runtime/ts/history';
 
 // 入力モーダル
 import InputModal from '../ui/InputModal';
+
+// Firebase Authentication
+import LoginButton from '../ui/LoginButton';
+import { 
+  signInWithGithub, 
+  signOut, 
+  onAuthStateChange, 
+  syncAppStateToFirestore,
+  loadAppStateFromFirestore,
+  loadHistoryFromFirestore,
+  migrateLocalDataToFirestore,
+  UserProfile
+} from '../firebase/auth';
+import { isFirebaseEnabled } from '../firebase/config';
+import { compressToEncodedURIComponent as enc } from 'lz-string';
 
 // @ts-ignore - Vite の worker ローダ
 import RunnerWorker from '../workers/run.worker?worker';
@@ -19,6 +34,9 @@ import RunnerWorker from '../workers/run.worker?worker';
 // State persistence
 const APP_STATE_KEY = 'befunge.app.state';
 const APP_STATE_COOKIE = 'befunge_app_state_ts';
+
+// Global user ID for sync
+let globalUserId: string | null = null;
 
 function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter') {
   try {
@@ -28,6 +46,13 @@ function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpre
     const d = new Date();
     d.setTime(d.getTime() + 365 * 24 * 60 * 60 * 1000);
     document.cookie = `${APP_STATE_COOKIE}=${Date.now()};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+    
+    // Sync to Firestore if user is logged in
+    if (globalUserId) {
+      syncAppStateToFirestore(globalUserId, state).catch(err => {
+        console.warn('Failed to sync app state to Firestore:', err);
+      });
+    }
   } catch (e) {
     console.warn('Failed to save app state', e);
   }
@@ -59,6 +84,10 @@ function parseInputQueue(input: string): number[] {
 }
 
 export default function App() {
+  // Authentication state
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
+
   // Load saved app state
   const savedState = loadAppState();
   
@@ -97,6 +126,49 @@ export default function App() {
 
   // 入力モーダル
   const [showInputModal, setShowInputModal] = useState(false);
+
+  // Authentication listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        const userProfile: UserProfile = {
+          uid: firebaseUser.uid,
+          displayName: firebaseUser.displayName,
+          email: firebaseUser.email,
+          photoURL: firebaseUser.photoURL
+        };
+        setUser(userProfile);
+        globalUserId = firebaseUser.uid;
+        setCurrentUserId(firebaseUser.uid);
+        
+        // Migrate local data to Firestore on first login
+        if (!authInitialized) {
+          await migrateLocalDataToFirestore(firebaseUser.uid);
+          
+          // Load data from Firestore
+          const firestoreAppState = await loadAppStateFromFirestore(firebaseUser.uid);
+          if (firestoreAppState) {
+            setCode(firestoreAppState.code);
+            setInputQueueText(firestoreAppState.inputQueue);
+            setMode(firestoreAppState.mode);
+          }
+          
+          const firestoreHistory = await loadHistoryFromFirestore(firebaseUser.uid);
+          if (firestoreHistory) {
+            // Update localStorage with Firestore data
+            localStorage.setItem('befunge.history.v1', enc(JSON.stringify(firestoreHistory)));
+          }
+        }
+      } else {
+        setUser(null);
+        globalUserId = null;
+        setCurrentUserId(null);
+      }
+      setAuthInitialized(true);
+    });
+    
+    return unsubscribe;
+  }, [authInitialized]);
 
   const worker = useMemo(() => new RunnerWorker() as Worker, []);
   const rafRef = useRef<number | null>(null);
@@ -277,6 +349,25 @@ export default function App() {
     return result;
   }, [textOut, numOut]);
 
+  // Authentication handlers
+  const handleLogin = async () => {
+    try {
+      await signInWithGithub();
+    } catch (error) {
+      console.error('Login failed:', error);
+      alert('ログインに失敗しました。もう一度お試しください。');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      alert('ログアウトしました。');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   return (
     <div className="app">
       <div className="toolbar">
@@ -372,6 +463,14 @@ export default function App() {
         </div>
         <div>
           PC: ({pc.x}, {pc.y}) | 方向: [{dir.dx}, {dir.dy}]
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <LoginButton 
+            user={user}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            isFirebaseEnabled={isFirebaseEnabled}
+          />
         </div>
       </div>
 
