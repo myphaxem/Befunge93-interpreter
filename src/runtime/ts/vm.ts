@@ -15,7 +15,7 @@ export class RNG {
   constructor(seed = 123456789) { this.seed = seed >>> 0; }
   next() { // xorshift32
     let x = this.seed;
-    x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 0xffffffff; }
+    x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 0x100000000; }
   pick<T>(arr: T[]): T { return arr[Math.floor(this.next() * arr.length)]!; }
 }
 
@@ -71,6 +71,51 @@ export class BefungeVM {
   }
 
   private needInt(): number {
+    // Skip leading whitespace and newlines
+    while (this.inputQueue.length > 0) {
+      const ch = this.inputQueue[0]!;
+      // Check if it's whitespace (space=32, tab=9, newline=10, carriage return=13)
+      if (ch === 32 || ch === 9 || ch === 10 || ch === 13) {
+        this.inputQueue.shift();
+      } else {
+        break;
+      }
+    }
+    
+    if (this.inputQueue.length === 0) return -1; // EOF
+    
+    // Read digits (and optional minus sign)
+    let numStr = '';
+    let firstChar = this.inputQueue[0]!;
+    
+    // Check if first character is a minus sign or digit
+    if (firstChar === 45) { // '-'
+      numStr += String.fromCharCode(this.inputQueue.shift()!);
+    }
+    
+    // Read digits
+    let hasDigits = false;
+    while (this.inputQueue.length > 0) {
+      const ch = this.inputQueue[0]!;
+      if (ch >= 48 && ch <= 57) { // '0'-'9'
+        hasDigits = true;
+        numStr += String.fromCharCode(this.inputQueue.shift()!);
+      } else {
+        break;
+      }
+    }
+    
+    // If no valid number was read, error
+    if (!hasDigits) {
+      this.halted = true;
+      this.exitCode = 1;
+      return -1;
+    }
+    
+    return parseInt(numStr, 10);
+  }
+
+  private needChar(): number {
     if (this.inputQueue.length === 0) return -1; // EOF
     return this.inputQueue.shift()!;
   }
@@ -151,7 +196,7 @@ export class BefungeVM {
         this.push(v); this.move(); break;
       }
       case 126: { // '~' char input
-        const v = this.needInt();
+        const v = this.needChar();
         // Don't mask EOF (-1), otherwise mask to byte
         this.push(v === -1 ? -1 : v & 0xff); 
         this.move(); break;

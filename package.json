@@ -12,7 +12,8 @@
         "lz-string": "^1.5.0",
         "monaco-editor": "^0.52.0",
         "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "react-dom": "^18.2.0",
+        "swiper": "^12.0.2"
     },
     "devDependencies": {
         "@types/lz-string": "^1.3.34",

@@ -49,8 +49,8 @@ function loadAppState(): { code: string; inputQueue: string; mode: 'edit' | 'int
 }
 
 function parseInputQueue(input: string): number[] {
-  // 入力文字列をそのまま charCode に変換
-  // すべての文字（スペース、改行含む）を保持
+  // Convert all characters to their char codes
+  // The & command will handle parsing integers from the stream
   const out: number[] = [];
   for (const ch of input) {
     out.push(ch.charCodeAt(0));
@@ -90,6 +90,7 @@ export default function App() {
   const [inputQueueText, setInputQueueText] = useState(savedState?.inputQueue || '');
   const [mode, setMode] = useState<'edit' | 'interpreter'>(savedState?.mode || 'edit');
   const [runtimeGrid, setRuntimeGrid] = useState<number[][] | null>(null);
+  const [seed, setSeed] = useState(''); // seed input (empty string means auto)
 
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
@@ -104,7 +105,7 @@ export default function App() {
 
   // Initialize worker with code on mount
   useEffect(() => {
-    worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
+    worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
   }, [worker]);
 
   const updateRunning = useCallback((next: boolean) => {
@@ -196,6 +197,15 @@ export default function App() {
     worker.postMessage({ type: 'stop' });
   };
 
+  // Helper function to get seed value
+  const getSeedValue = () => {
+    if (seed.trim() === '') {
+      return Date.now(); // Use current timestamp if empty
+    }
+    const parsed = parseInt(seed, 10);
+    return isNaN(parsed) ? Date.now() : parsed;
+  };
+
   const onRun = () => {
     setTextOut(''); 
     setNumOut([]); 
@@ -203,7 +213,7 @@ export default function App() {
     setExitCode(null);
     updateRunning(true);
     setMode('interpreter');
-    worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
+    worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
     startLoop();
   };
   const onStop = () => { 
@@ -218,11 +228,13 @@ export default function App() {
     setStatus('idle');
   };
   const onStep = () => { 
+    if (mode === 'edit') {
+      // Load current code when stepping from edit mode
+      worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
+    }
     setMode('interpreter');
     updateRunning(false); 
     stopLoop(); 
-    // Load current code when stepping from edit mode
-    worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
     worker.postMessage({ type: 'step' }); 
   };
   const onShare = () => { const h = encodeToHash(code); history.replaceState(null, '', h); navigator.clipboard?.writeText(location.href); alert('共有URLをクリップボードにコピーしました\n' + location.href); };
@@ -250,7 +262,7 @@ export default function App() {
       const newMode = m === 'edit' ? 'interpreter' : 'edit';
       // When switching to interpreter mode, load the current edit code
       if (newMode === 'interpreter') {
-        worker.postMessage({ type: 'load', code, inputQueue: parseInputQueue(inputQueueText) });
+        worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
       }
       return newMode;
     });
@@ -290,8 +302,11 @@ export default function App() {
           mode={mode}
           onToggleMode={toggleMode}
 
+          seed={seed}
+          setSeed={setSeed}
+
           loadSample={async (name: string) => {
-            const map: Record<string, string> = { hello: 'hello_world.bf', cat: 'cat.bf', sieve: 'sieve.bf' };
+            const map: Record<string, string> = { hello: 'hello_world.bf', cat: 'cat.bf', sieve: 'sieve.bf', random: 'random.bf' };
             const file = map[name]; if (!file) return;
             try {
               const res = await fetch(`./samples/${file}`);
