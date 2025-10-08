@@ -15,7 +15,7 @@ export class RNG {
   constructor(seed = 123456789) { this.seed = seed >>> 0; }
   next() { // xorshift32
     let x = this.seed;
-    x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 0xffffffff; }
+    x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 0x100000000; }
   pick<T>(arr: T[]): T { return arr[Math.floor(this.next() * arr.length)]!; }
 }
 
