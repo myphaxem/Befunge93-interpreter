@@ -12,10 +12,8 @@ export default function Toolbar(props: {
   inputQueue: string;
   setInputQueue: (s: string) => void;
 
-  // 追加: ファイル名で読み込み
-  filename: string;
-  setFilename: (s: string) => void;
-  onOpenByFilename: () => void;
+  // 追加: ファイルアップロード
+  onOpenFile: (content: string) => void;
 
   // 追加: 履歴機能
   onSaveSnapshot: () => void;
@@ -34,12 +32,34 @@ export default function Toolbar(props: {
   const {
     onRun, onStop, onStep, onShare, running, status, speed, setSpeed,
     inputQueue, setInputQueue,
-    filename, setFilename, onOpenByFilename,
+    onOpenFile,
     onSaveSnapshot, onToggleHistory,
     onOpenInputModal,
     mode, onToggleMode,
     loadSample
   } = props;
+
+  const [sampleValue, setSampleValue] = React.useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        onOpenFile(content);
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset input so same file can be loaded again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <div className="toolbar row">
@@ -88,19 +108,29 @@ export default function Toolbar(props: {
 
         <div className="hr" style={{ width: 1, height: 24 }} />
 
-        {/* ファイル名読み込み */}
-        <label>ファイル名:</label>
+        {/* ファイルアップロード */}
         <input
-          style={{ width: 180 }}
-          placeholder="例: hello_world.bf"
-          value={filename}
-          onChange={(e) => setFilename(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') onOpenByFilename(); }}
+          ref={fileInputRef}
+          type="file"
+          accept=".txt,.bf,.bf93,.b,.b93"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
         />
-        <button onClick={onOpenByFilename}>開く</button>
+        <button onClick={() => fileInputRef.current?.click()}>開く</button>
 
         {/* 任意のサンプル選択も残す */}
-        <select onChange={(e) => loadSample(e.target.value)} defaultValue="">
+        <select 
+          value={sampleValue} 
+          onChange={(e) => {
+            const val = e.target.value;
+            setSampleValue(val);
+            if (val) {
+              loadSample(val);
+              // Reset to empty so same sample can be loaded again
+              setTimeout(() => setSampleValue(''), 0);
+            }
+          }}
+        >
           <option value="" disabled>サンプル...</option>
           <option value="hello">hello_world.bf</option>
           <option value="cat">cat.bf</option>

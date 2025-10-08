@@ -314,6 +314,8 @@ input[type="range"] {
     border-radius: 3px;
     outline: none;
     cursor: pointer;
+    margin: 0;
+    padding: 0;
 }
 
 /* Webkit browsers (Chrome, Safari, Edge) */
@@ -332,6 +334,7 @@ input[type="range"]::-webkit-slider-thumb {
     width: 16px;
     border-radius: 50%;
     cursor: pointer;
+    margin-top: -5px;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
