@@ -1,4 +1,5 @@
 import React from 'react';
+import type { User } from '../runtime/ts/auth';
 
 export default function Toolbar(props: {
   onRun: () => void;
@@ -32,6 +33,12 @@ export default function Toolbar(props: {
   // 追加: seed入力
   seed: string;
   setSeed: (s: string) => void;
+
+  // Auth
+  user: User | null;
+  onLogin: () => void;
+  onLogout: () => void;
+  authLoading: boolean;
 }) {
   const {
     onRun, onStop, onStep, onShare, running, status, speed, setSpeed,
@@ -41,7 +48,8 @@ export default function Toolbar(props: {
     onOpenInputModal,
     mode, onToggleMode,
     loadSample,
-    seed, setSeed
+    seed, setSeed,
+    user, onLogin, onLogout, authLoading
   } = props;
 
   const [sampleValue, setSampleValue] = React.useState('');
@@ -169,6 +177,34 @@ export default function Toolbar(props: {
         <button onClick={onSaveSnapshot}>保存</button>
         <button onClick={onToggleHistory}>履歴</button>
         <button onClick={onShare}>共有</button>
+
+        <div className="hr" style={{ width: 1, height: 24 }} />
+
+        {/* Auth */}
+        {authLoading ? (
+          <span style={{ color: '#9aa4af', fontSize: 13 }}>読込中...</span>
+        ) : user ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {user.avatarUrl && (
+              <img 
+                src={user.avatarUrl} 
+                alt={user.username}
+                style={{ 
+                  width: 24, 
+                  height: 24, 
+                  borderRadius: '50%',
+                  border: '1px solid #2a2f36'
+                }}
+              />
+            )}
+            <span style={{ color: '#9aa4af', fontSize: 13 }}>
+              {user.username}
+            </span>
+            <button onClick={onLogout}>ログアウト</button>
+          </div>
+        ) : (
+          <button onClick={onLogin}>GitHubでログイン</button>
+        )}
       </div>
     </div>
   );

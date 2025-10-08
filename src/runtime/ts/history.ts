@@ -1,8 +1,15 @@
 import { compressToEncodedURIComponent as enc, decompressFromEncodedURIComponent as dec } from 'lz-string';
+import { saveToRemote, loadFromRemote } from './storage';
 
 // ストレージ鍵
 const LS_KEY = 'befunge.history.v1';
 const COOKIE_KEY = 'befunge_hist_meta';
+
+// Track if user is authenticated (set by App)
+let isAuthenticated = false;
+export function setAuthStatus(authenticated: boolean) {
+  isAuthenticated = authenticated;
+}
 
 // 型
 export type HistoryEntry = {
@@ -65,6 +72,66 @@ export function loadStore(): HistoryStore {
 function saveStore(store: HistoryStore) {
   localStorage.setItem(LS_KEY, enc(JSON.stringify(store)));
   writeMetaCookie(store);
+  // If authenticated, also save to remote
+  if (isAuthenticated) {
+    saveToRemote('history', store).catch(err => console.error('Failed to sync history:', err));
+  }
+}
+
+// Load store from remote (when user logs in)
+export async function loadStoreFromRemote(): Promise<HistoryStore | null> {
+  try {
+    const remoteData = await loadFromRemote('history');
+    if (remoteData && remoteData.version === 1) {
+      return remoteData as HistoryStore;
+    }
+    return null;
+  } catch (err) {
+    console.error('Failed to load store from remote:', err);
+    return null;
+  }
+}
+
+// Merge local and remote data, then save (called on login)
+export async function syncStoreOnLogin() {
+  const localStore = loadStore();
+  const remoteStore = await loadStoreFromRemote();
+  
+  if (!remoteStore) {
+    // No remote data, push local to remote
+    await saveToRemote('history', localStore);
+    return;
+  }
+  
+  // Merge: combine entries, keeping newer versions based on updatedAt
+  const mergedEntries = [...localStore.entries];
+  const localEntryIds = new Set(localStore.entries.map(e => e.id));
+  
+  for (const remoteEntry of remoteStore.entries) {
+    const localEntry = localStore.entries.find(e => e.id === remoteEntry.id);
+    if (!localEntry) {
+      // New entry from remote
+      mergedEntries.push(remoteEntry);
+    } else if (remoteEntry.updatedAt > localEntry.updatedAt) {
+      // Remote is newer, replace local
+      const index = mergedEntries.findIndex(e => e.id === remoteEntry.id);
+      mergedEntries[index] = remoteEntry;
+    }
+  }
+  
+  // Merge folders
+  const mergedFolders = Array.from(new Set([...localStore.folders, ...remoteStore.folders]));
+  
+  const mergedStore: HistoryStore = {
+    version: 1,
+    folders: mergedFolders,
+    entries: mergedEntries
+  };
+  
+  // Save merged data both locally and remotely
+  localStorage.setItem(LS_KEY, enc(JSON.stringify(mergedStore)));
+  writeMetaCookie(mergedStore);
+  await saveToRemote('history', mergedStore);
 }
 
 export function listFolders(): string[] {

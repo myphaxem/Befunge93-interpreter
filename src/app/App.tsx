@@ -8,10 +8,14 @@ import { decodeFromHash, encodeToHash } from '../runtime/ts/serializer';
 
 // 履歴
 import HistoryPanel from '../ui/HistoryPanel';
-import { getLastOpen, getEntry } from '../runtime/ts/history';
+import { getLastOpen, getEntry, setAuthStatus, syncStoreOnLogin } from '../runtime/ts/history';
 
 // 入力モーダル
 import InputModal from '../ui/InputModal';
+
+// Auth
+import { getCurrentUser, initiateLogin, logout as authLogout, type User } from '../runtime/ts/auth';
+import { syncAppStateToRemote, loadFromRemote } from '../runtime/ts/storage';
 
 // @ts-ignore - Vite の worker ローダ
 import RunnerWorker from '../workers/run.worker?worker';
@@ -20,7 +24,7 @@ import RunnerWorker from '../workers/run.worker?worker';
 const APP_STATE_KEY = 'befunge.app.state';
 const APP_STATE_COOKIE = 'befunge_app_state_ts';
 
-function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter') {
+function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter', user: User | null) {
   try {
     const state = { code, inputQueue, mode, timestamp: Date.now() };
     localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
@@ -28,6 +32,11 @@ function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpre
     const d = new Date();
     d.setTime(d.getTime() + 365 * 24 * 60 * 60 * 1000);
     document.cookie = `${APP_STATE_COOKIE}=${Date.now()};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+    
+    // If user is logged in, also sync to remote
+    if (user) {
+      syncAppStateToRemote(state).catch(err => console.error('Failed to sync app state:', err));
+    }
   } catch (e) {
     console.warn('Failed to save app state', e);
   }
@@ -59,6 +68,10 @@ function parseInputQueue(input: string): number[] {
 }
 
 export default function App() {
+  // Auth state
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   // Load saved app state
   const savedState = loadAppState();
   
@@ -107,6 +120,35 @@ export default function App() {
   useEffect(() => {
     worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
   }, [worker]);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    async function checkAuth() {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+      setAuthStatus(!!currentUser);
+      
+      if (currentUser) {
+        // Sync data on login
+        await syncStoreOnLogin();
+        
+        // Load app state from remote if available
+        const remoteAppState = await loadFromRemote('app_state');
+        if (remoteAppState && remoteAppState.timestamp) {
+          const localTimestamp = savedState?.timestamp || 0;
+          // Use remote state if it's newer
+          if (remoteAppState.timestamp > localTimestamp) {
+            if (remoteAppState.code) setCode(remoteAppState.code);
+            if (remoteAppState.inputQueue) setInputQueueText(remoteAppState.inputQueue);
+            if (remoteAppState.mode) setMode(remoteAppState.mode);
+          }
+        }
+      }
+      
+      setAuthLoading(false);
+    }
+    checkAuth();
+  }, []);
 
   const updateRunning = useCallback((next: boolean) => {
     runningRef.current = next;
@@ -163,10 +205,10 @@ export default function App() {
   // Save app state periodically when code, inputQueue, or mode changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      saveAppState(code, inputQueueText, mode);
+      saveAppState(code, inputQueueText, mode, user);
     }, 500); // Debounce by 500ms to avoid too frequent saves
     return () => clearTimeout(timeoutId);
-  }, [code, inputQueueText, mode]);
+  }, [code, inputQueueText, mode, user]);
 
   const startLoop = () => {
     if (rafRef.current != null) return;
@@ -250,6 +292,20 @@ export default function App() {
   };
   const onToggleHistory = () => setShowHistory(v => !v);
 
+  // Auth handlers
+  const handleLogin = () => {
+    initiateLogin();
+  };
+
+  const handleLogout = async () => {
+    const success = await authLogout();
+    if (success) {
+      setUser(null);
+      setAuthStatus(false);
+      window.location.reload(); // Reload to clear state
+    }
+  };
+
   // 入力モーダル
   const onOpenInputModal = () => setShowInputModal(true);
   const onSaveInput = (newInput: string) => {
@@ -304,6 +360,11 @@ export default function App() {
 
           seed={seed}
           setSeed={setSeed}
+
+          user={user}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          authLoading={authLoading}
 
           loadSample={async (name: string) => {
             const map: Record<string, string> = { hello: 'hello_world.bf', cat: 'cat.bf', sieve: 'sieve.bf', random: 'random.bf' };
