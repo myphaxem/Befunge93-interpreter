@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GithubAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, GithubAuthProvider, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 // Firebase configuration - these should be set via environment variables
 // For development, you can use a .env file
@@ -14,14 +14,13 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if configuration is provided
-let app;
-let auth;
-let db;
-let githubProvider;
+let auth: Auth | undefined;
+let db: Firestore | undefined;
+let githubProvider: GithubAuthProvider | undefined;
 
 try {
   if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-    app = initializeApp(firebaseConfig);
+    const app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
     githubProvider = new GithubAuthProvider();
