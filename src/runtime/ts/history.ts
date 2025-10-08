@@ -1,8 +1,16 @@
 import { compressToEncodedURIComponent as enc, decompressFromEncodedURIComponent as dec } from 'lz-string';
+import { syncHistoryToFirestore } from '../../firebase/auth';
 
 // ストレージ鍵
 const LS_KEY = 'befunge.history.v1';
 const COOKIE_KEY = 'befunge_hist_meta';
+
+// Global user ID for Firestore sync
+let currentUserId: string | null = null;
+
+export function setCurrentUserId(userId: string | null) {
+  currentUserId = userId;
+}
 
 // 型
 export type HistoryEntry = {
@@ -65,6 +73,13 @@ export function loadStore(): HistoryStore {
 function saveStore(store: HistoryStore) {
   localStorage.setItem(LS_KEY, enc(JSON.stringify(store)));
   writeMetaCookie(store);
+  
+  // Sync to Firestore if user is logged in
+  if (currentUserId) {
+    syncHistoryToFirestore(currentUserId, store).catch(err => {
+      console.warn('Failed to sync history to Firestore:', err);
+    });
+  }
 }
 
 export function listFolders(): string[] {
