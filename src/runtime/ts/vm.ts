@@ -21,6 +21,8 @@ export class RNG {
 
 export class BefungeVM {
   grid: number[][]; // char codes
+  gridW: number; // actual grid width
+  gridH: number; // actual grid height
   stack: number[] = [];
   x = 0; y = 0; dx = 1; dy = 0;
   stringMode = false;
@@ -35,11 +37,18 @@ export class BefungeVM {
     // 受け取ったソースからタブ文字を「スペース1つ」に正規化
     const normalized = src.replace(/\t/g, ' ').replace(/\r\n?/g, '\n');
 
-    this.grid = Array.from({ length: GRID_H }, () => Array(GRID_W).fill(32)); // space
     const lines = normalized.split('\n');
-    for (let y = 0; y < Math.min(GRID_H, lines.length); y++) {
+    // Calculate actual grid dimensions based on content
+    this.gridH = Math.max(lines.length, 1);
+    this.gridW = Math.max(...lines.map(l => l.length), 1);
+    
+    // Initialize grid with spaces
+    this.grid = Array.from({ length: this.gridH }, () => Array(this.gridW).fill(32));
+    
+    // Fill grid with source code
+    for (let y = 0; y < lines.length; y++) {
       const line = lines[y]!;
-      for (let x = 0; x < Math.min(GRID_W, line.length); x++) {
+      for (let x = 0; x < line.length; x++) {
         this.grid[y]![x] = line.charCodeAt(x);
       }
     }
@@ -51,8 +60,8 @@ export class BefungeVM {
   push(v: number) { this.stack.push(Math.trunc(v)); } // 64-bit signed integer (JavaScript number)
 
   private move() {
-    this.x = (this.x + this.dx + GRID_W) % GRID_W;
-    this.y = (this.y + this.dy + GRID_H) % GRID_H;
+    this.x = (this.x + this.dx + this.gridW) % this.gridW;
+    this.y = (this.y + this.dy + this.gridH) % this.gridH;
   }
 
   private outText(ch: number) { this.outputs.push({ kind: 'text', ch: String.fromCharCode(ch & 0xff) }); }
