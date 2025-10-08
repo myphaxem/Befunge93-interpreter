@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Editor from '../editor/Editor';
+import BefungeGrid from './BefungeGrid';
 
 type Props = {
   code: string;
@@ -34,6 +35,15 @@ export default function EditorWithHighlight({ code, onChange, pc, mode }: Props)
       height: `${lineHeight}px`,
     });
   }, [pc, mode]);
+
+  // Use grid view in interpreter mode, Monaco editor in edit mode
+  if (mode === 'interpreter') {
+    return (
+      <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+        <BefungeGrid code={code} pc={pc} />
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
