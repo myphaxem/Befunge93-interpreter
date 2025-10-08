@@ -67,6 +67,7 @@ export default function App() {
 
   const worker = useMemo(() => new RunnerWorker() as Worker, []);
   const rafRef = useRef<number | null>(null);
+  const lastTickTime = useRef<number>(0);
 
   // Initialize worker with code on mount
   useEffect(() => {
@@ -124,8 +125,19 @@ export default function App() {
 
   const startLoop = () => {
     if (rafRef.current != null) return;
+    lastTickTime.current = performance.now();
     const tick = () => {
-      worker.postMessage({ type: 'run', steps: speedRef.current });
+      const now = performance.now();
+      const deltaTime = (now - lastTickTime.current) / 1000; // Convert to seconds
+      
+      // Calculate how many steps to run based on elapsed time and desired speed
+      const stepsToRun = Math.floor(speedRef.current * deltaTime);
+      
+      if (stepsToRun > 0) {
+        worker.postMessage({ type: 'run', steps: stepsToRun });
+        lastTickTime.current = now;
+      }
+      
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
