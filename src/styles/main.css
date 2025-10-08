@@ -147,6 +147,33 @@ body {
     gap: 8px;
 }
 
+/* Simple Editor (textarea-based) */
+.simple-editor {
+    width: 100%;
+    height: 100%;
+    background: #1e1e1e;
+    color: var(--fg);
+    font-family: var(--mono-font);
+    font-size: 14px;
+    line-height: 19px;
+    padding: 10px;
+    border: none;
+    outline: none;
+    resize: none;
+    overflow: auto;
+    tab-size: 1;
+    -moz-tab-size: 1;
+}
+
+.simple-editor:focus {
+    background: #1e1e1e;
+}
+
+.simple-editor:read-only {
+    background: #2a2a2a;
+    cursor: default;
+}
+
 /* PC Highlight overlay for interpreter mode */
 .pc-highlight {
     position: absolute;

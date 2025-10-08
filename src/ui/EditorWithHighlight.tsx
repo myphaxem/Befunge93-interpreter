@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import Editor from '../editor/Editor';
+import SimpleEditor from '../editor/SimpleEditor';
 import BefungeGrid from './BefungeGrid';
 
 type Props = {
@@ -20,12 +20,12 @@ export default function EditorWithHighlight({ code, onChange, pc, mode }: Props)
     }
 
     // Calculate character position
-    // Monaco uses line height and character width
-    const lineHeight = 19; // Approximate line height at font-size 14px
+    // SimpleEditor uses line height and character width without line number gutter
+    const lineHeight = 19; // Line height at font-size 14px
     const charWidth = 8.4; // Approximate character width for monospace font
     
-    const top = pc.y * lineHeight + 1;
-    const left = pc.x * charWidth + 62; // 62px for line number gutter
+    const top = pc.y * lineHeight + 10; // 10px for padding
+    const left = pc.x * charWidth + 10; // 10px for padding
 
     setHighlightStyle({
       display: 'block',
@@ -47,7 +47,7 @@ export default function EditorWithHighlight({ code, onChange, pc, mode }: Props)
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <Editor code={code} onChange={onChange} readOnly={mode === 'interpreter'} />
+      <SimpleEditor code={code} onChange={onChange} readOnly={mode === 'interpreter'} />
       <div className="pc-highlight" style={highlightStyle} />
     </div>
   );
