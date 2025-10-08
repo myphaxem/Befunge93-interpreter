@@ -49,45 +49,12 @@ function loadAppState(): { code: string; inputQueue: string; mode: 'edit' | 'int
 }
 
 function parseInputQueue(input: string): number[] {
-  // Parse input: space-separated integers or character strings
-  // Examples:
-  // "65 10 ABC" → [65, 10, 65, 66, 67]
-  // "Hello\nWorld" → [72, 101, 108, 108, 111, 10, 87, 111, 114, 108, 100]
-  // "5" → [5]
+  // Convert all characters to their char codes
+  // The & command will handle parsing integers from the stream
   const out: number[] = [];
-  
-  // Check if input contains spaces - if so, parse as space-separated tokens
-  if (input.includes(' ')) {
-    const tokens = input.split(' ');
-    for (const token of tokens) {
-      if (token.length === 0) continue;
-      
-      // Try to parse as integer
-      const num = parseInt(token, 10);
-      if (!isNaN(num) && token === num.toString()) {
-        // Valid integer
-        out.push(num);
-      } else {
-        // Not a valid integer, treat as string and convert to char codes
-        for (const ch of token) {
-          out.push(ch.charCodeAt(0));
-        }
-      }
-    }
-  } else {
-    // No spaces - check if entire input is a valid integer
-    const num = parseInt(input, 10);
-    if (!isNaN(num) && input.trim() === num.toString()) {
-      // It's a single integer
-      out.push(num);
-    } else {
-      // Not an integer, treat as raw string (preserving all chars including newlines)
-      for (const ch of input) {
-        out.push(ch.charCodeAt(0));
-      }
-    }
+  for (const ch of input) {
+    out.push(ch.charCodeAt(0));
   }
-  
   return out;
 }
 
