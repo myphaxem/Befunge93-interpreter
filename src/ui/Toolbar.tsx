@@ -28,6 +28,10 @@ export default function Toolbar(props: {
 
   // 既存サンプルも残す（任意）
   loadSample: (name: string) => void;
+
+  // 追加: seed入力
+  seed: string;
+  setSeed: (s: string) => void;
 }) {
   const {
     onRun, onStop, onStep, onShare, running, status, speed, setSpeed,
@@ -36,7 +40,8 @@ export default function Toolbar(props: {
     onSaveSnapshot, onToggleHistory,
     onOpenInputModal,
     mode, onToggleMode,
-    loadSample
+    loadSample,
+    seed, setSeed
   } = props;
 
   const [sampleValue, setSampleValue] = React.useState('');
@@ -90,6 +95,25 @@ export default function Toolbar(props: {
         />
         <span className="speed-display">{speed}</span>
 
+        <label>seed:</label>
+        <input 
+          type="text" 
+          value={seed}
+          onChange={e => setSeed(e.target.value)}
+          placeholder="auto"
+          style={{ 
+            width: 80,
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: 13,
+            padding: '4px 8px',
+            background: '#0f1216',
+            border: '1px solid #2a2f36',
+            borderRadius: 4,
+            color: '#e8eaed'
+          }}
+          title="乱数シード（空欄で自動）"
+        />
+
         <label>stdin:</label>
         <button 
           onClick={onOpenInputModal}
@@ -137,6 +161,7 @@ export default function Toolbar(props: {
           <option value="hello">hello_world.bf</option>
           <option value="cat">cat.bf</option>
           <option value="sieve">sieve.bf</option>
+          <option value="random">random.bf</option>
         </select>
 
         <div className="hr" style={{ width: 1, height: 24 }} />
