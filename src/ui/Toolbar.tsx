@@ -86,7 +86,9 @@ export default function Toolbar(props: {
           onChange={e => setSpeed(parseInt(e.target.value))} 
           style={{ width: 150 }} 
           title={`${speed} ステップ/秒`}
+          className="speed-slider"
         />
+        <span className="speed-display">{speed}</span>
 
         <label>stdin:</label>
         <button 
