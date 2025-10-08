@@ -1,5 +1,4 @@
 import React from 'react';
-import SampleCarousel from './SampleCarousel';
 
 export default function Toolbar(props: {
   onRun: () => void;
@@ -45,6 +44,7 @@ export default function Toolbar(props: {
     seed, setSeed
   } = props;
 
+  const [sampleValue, setSampleValue] = React.useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,8 +144,25 @@ export default function Toolbar(props: {
         />
         <button onClick={() => fileInputRef.current?.click()}>開く</button>
 
-        {/* Swiper-based sample carousel */}
-        <SampleCarousel onSelectSample={loadSample} />
+        {/* 任意のサンプル選択も残す */}
+        <select 
+          value={sampleValue} 
+          onChange={(e) => {
+            const val = e.target.value;
+            setSampleValue(val);
+            if (val) {
+              loadSample(val);
+              // Reset to empty so same sample can be loaded again
+              setTimeout(() => setSampleValue(''), 0);
+            }
+          }}
+        >
+          <option value="" disabled>サンプル...</option>
+          <option value="hello">hello_world.bf</option>
+          <option value="cat">cat.bf</option>
+          <option value="sieve">sieve.bf</option>
+          <option value="random">random.bf</option>
+        </select>
 
         <div className="hr" style={{ width: 1, height: 24 }} />
 
