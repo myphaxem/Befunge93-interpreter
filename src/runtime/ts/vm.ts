@@ -66,8 +66,9 @@ export class BefungeVM {
 
   private outText(ch: number) { this.outputs.push({ kind: 'text', ch: String.fromCharCode(ch & 0xff) }); }
   private outNum(v: number) { 
-    this.outputs.push({ kind: 'number', value: Math.trunc(v) }); 
-    this.outputs.push({ kind: 'text', ch: ' ' }); // space after number per reference implementation
+    // Output the number as text followed by a space
+    this.outputs.push({ kind: 'text', ch: Math.trunc(v).toString() }); 
+    this.outputs.push({ kind: 'text', ch: ' ' });
   }
 
   private needInt(): number {

@@ -38,9 +38,15 @@ const APP_STATE_COOKIE = 'befunge_app_state_ts';
 // Global user ID for sync
 let globalUserId: string | null = null;
 
-function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter') {
+function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter', breakpoints: Set<string>) {
   try {
-    const state = { code, inputQueue, mode, timestamp: Date.now() };
+    const state = { 
+      code, 
+      inputQueue, 
+      mode, 
+      breakpoints: Array.from(breakpoints),
+      timestamp: Date.now() 
+    };
     localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
     // Also set a cookie with just the timestamp for faster checking
     const d = new Date();
@@ -58,7 +64,7 @@ function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpre
   }
 }
 
-function loadAppState(): { code: string; inputQueue: string; mode: 'edit' | 'interpreter' } | null {
+function loadAppState(): { code: string; inputQueue: string; mode: 'edit' | 'interpreter'; breakpoints?: string[] } | null {
   try {
     const raw = localStorage.getItem(APP_STATE_KEY);
     if (!raw) return null;
@@ -105,7 +111,6 @@ export default function App() {
   });
 
   const [textOut, setTextOut] = useState('');
-  const [numOut, setNumOut] = useState<number[]>([]);
   const [errorOut, setErrorOut] = useState('');
   const [stack, setStack] = useState<number[]>([]);
   const [pc, setPC] = useState({ x: 0, y: 0 });
@@ -121,20 +126,27 @@ export default function App() {
   const [runtimeGrid, setRuntimeGrid] = useState<number[][] | null>(null);
   const [seed, setSeed] = useState(''); // seed input (empty string means auto)
 
-  // History tracking for step back (store last 100 states)
+  // Breakpoints - stored as a Set of "x,y" strings, loaded from savedState
+  const [breakpoints, setBreakpoints] = useState<Set<string>>(() => {
+    if (savedState?.breakpoints && Array.isArray(savedState.breakpoints)) {
+      return new Set(savedState.breakpoints);
+    }
+    return new Set();
+  });
+
+  // History tracking for step back (store last 10000 states)
   const [stateHistory, setStateHistory] = useState<Array<{
     stack: number[];
     pc: { x: number; y: number };
     dir: { dx: number; dy: number };
     grid: number[][];
     textOut: string;
-    numOut: number[];
     errorOut: string;
     status: string;
     exitCode: number | null;
     inputQueue: string;
   }>>([]);
-  const maxHistorySize = 100;
+  const maxHistorySize = 10000;
 
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
@@ -210,8 +222,9 @@ export default function App() {
       const s = e.data;
       if (!s) return;
       
-      // Save current state to history before updating (only in interpreter mode and not halted)
-      if (mode === 'interpreter' && status !== 'halted' && !running) {
+      // Save current state to history before updating
+      // Save whenever we're in interpreter mode and not currently running continuously
+      if (mode === 'interpreter' && !running) {
         setStateHistory(prev => {
           const newHistory = [...prev, {
             stack: [...stack],
@@ -219,7 +232,6 @@ export default function App() {
             dir: { ...dir },
             grid: runtimeGrid ? runtimeGrid.map(row => [...row]) : [],
             textOut,
-            numOut: [...numOut],
             errorOut,
             status,
             exitCode,
@@ -235,8 +247,12 @@ export default function App() {
       
       if (Array.isArray(s.outputs)) {
         for (const o of s.outputs) {
-          if (o.kind === 'text') setTextOut(prev => prev + o.ch);
-          else setNumOut(prev => [...prev, o.value]);
+          if (o.kind === 'text') {
+            setTextOut(prev => prev + o.ch);
+          } else {
+            // For numbers, append the number followed by a space (already done in VM)
+            setTextOut(prev => prev + o.value.toString());
+          }
         }
       }
       if (s.error) {
@@ -256,10 +272,21 @@ export default function App() {
       }
       else if (s.waitingInput) { setStatus('waiting-input'); updateRunning(false); stopLoop(); }
       else setStatus(runningRef.current ? 'running' : 'idle');
+      
+      // Check for breakpoints
+      if (mode === 'interpreter' && running && !s.halted && !s.waitingInput) {
+        const bpKey = `${s.pc?.x ?? 0},${s.pc?.y ?? 0}`;
+        if (breakpoints.has(bpKey)) {
+          // Hit a breakpoint - pause execution
+          updateRunning(false);
+          stopLoop();
+          setStatus('idle');
+        }
+      }
     }
     worker.addEventListener('message', onMsg);
     return () => { worker.removeEventListener('message', onMsg); };
-  }, [worker, updateRunning, mode, status, running, stack, pc, dir, runtimeGrid, textOut, numOut, errorOut, exitCode]);
+  }, [worker, updateRunning, mode, status, running, stack, pc, dir, runtimeGrid, textOut, errorOut, exitCode, breakpoints]);
 
   useEffect(() => {
     // URL 共有対応
@@ -297,13 +324,13 @@ export default function App() {
     };
   }, []);
 
-  // Save app state periodically when code, inputQueue, or mode changes
+  // Save app state periodically when code, inputQueue, mode, or breakpoints change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      saveAppState(code, inputQueueText, mode);
+      saveAppState(code, inputQueueText, mode, breakpoints);
     }, 500); // Debounce by 500ms to avoid too frequent saves
     return () => clearTimeout(timeoutId);
-  }, [code, inputQueueText, mode]);
+  }, [code, inputQueueText, mode, breakpoints]);
 
   const startLoop = () => {
     if (rafRef.current != null) return;
@@ -345,7 +372,6 @@ export default function App() {
 
   const onRun = () => {
     setTextOut(''); 
-    setNumOut([]); 
     setErrorOut('');
     setExitCode(null);
     updateRunning(true);
@@ -360,7 +386,6 @@ export default function App() {
     worker.postMessage({ type: 'reset' }); 
     // Clear output states on reset
     setTextOut('');
-    setNumOut([]);
     setErrorOut('');
     setExitCode(null);
     setStatus('idle');
@@ -383,7 +408,6 @@ export default function App() {
       worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
       // Clear output states when reloading
       setTextOut('');
-      setNumOut([]);
       setErrorOut('');
       setExitCode(null);
       setStatus('idle');
@@ -410,7 +434,6 @@ export default function App() {
       setDir(lastState.dir);
       setRuntimeGrid(lastState.grid);
       setTextOut(lastState.textOut);
-      setNumOut(lastState.numOut);
       setErrorOut(lastState.errorOut);
       setStatus(lastState.status);
       setExitCode(lastState.exitCode);
@@ -467,14 +490,24 @@ export default function App() {
     });
   };
 
+  // Toggle breakpoint handler
+  const onToggleBreakpoint = (x: number, y: number) => {
+    setBreakpoints(prev => {
+      const newBreakpoints = new Set(prev);
+      const key = `${x},${y}`;
+      if (newBreakpoints.has(key)) {
+        newBreakpoints.delete(key);
+      } else {
+        newBreakpoints.add(key);
+      }
+      return newBreakpoints;
+    });
+  };
+
   // 統合された出力文字列
   const combinedOutput = useMemo(() => {
-    let result = textOut;
-    if (numOut.length > 0) {
-      result += numOut.join(' ');
-    }
-    return result;
-  }, [textOut, numOut]);
+    return textOut;
+  }, [textOut]);
 
   // Authentication handlers
   const handleLogin = async () => {
@@ -552,7 +585,9 @@ export default function App() {
               code={mode === 'interpreter' && runtimeGrid ? runtimeGrid.map(r => String.fromCharCode(...r)).join('\n') : code} 
               onChange={setCode} 
               pc={pc} 
-              mode={mode} 
+              mode={mode}
+              breakpoints={breakpoints}
+              onToggleBreakpoint={onToggleBreakpoint}
             />
           </div>
         </div>

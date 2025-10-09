@@ -7,9 +7,11 @@ type Props = {
   onChange: (v: string) => void;
   pc: { x: number; y: number };
   mode: 'edit' | 'interpreter';
+  breakpoints?: Set<string>;
+  onToggleBreakpoint?: (x: number, y: number) => void;
 };
 
-export default function EditorWithHighlight({ code, onChange, pc, mode }: Props) {
+export default function EditorWithHighlight({ code, onChange, pc, mode, breakpoints, onToggleBreakpoint }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [highlightStyle, setHighlightStyle] = useState<React.CSSProperties>({});
 
@@ -36,19 +38,25 @@ export default function EditorWithHighlight({ code, onChange, pc, mode }: Props)
     });
   }, [pc, mode]);
 
-  // Use grid view in interpreter mode, Monaco editor in edit mode
+  // Use grid view in interpreter mode with syntax highlighting
+  // In edit mode, show the simple editor (plain text)
   if (mode === 'interpreter') {
     return (
       <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-        <BefungeGrid code={code} pc={pc} />
+        <BefungeGrid 
+          code={code} 
+          pc={pc} 
+          breakpoints={breakpoints} 
+          onToggleBreakpoint={onToggleBreakpoint}
+          mode={mode}
+        />
       </div>
     );
   }
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <SimpleEditor code={code} onChange={onChange} readOnly={mode === 'interpreter'} />
-      <div className="pc-highlight" style={highlightStyle} />
+      <SimpleEditor code={code} onChange={onChange} readOnly={false} />
     </div>
   );
 }

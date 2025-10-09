@@ -1,8 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 type Props = {
   code: string;
   pc: { x: number; y: number };
+  breakpoints?: Set<string>;
+  onToggleBreakpoint?: (x: number, y: number) => void;
+  mode?: 'edit' | 'interpreter';
 };
 
 // Calculate grid dimensions based on outermost non-space characters
@@ -100,7 +103,9 @@ function getCharColor(ch: string): string {
   return 'var(--fg)';
 }
 
-export default function BefungeGrid({ code, pc }: Props) {
+export default function BefungeGrid({ code, pc, breakpoints = new Set(), onToggleBreakpoint, mode = 'interpreter' }: Props) {
+  const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
+  
   const { grid, dimensions } = useMemo(() => {
     const lines = code.split('\n');
     const dims = calculateGridDimensions(code);
@@ -149,6 +154,9 @@ export default function BefungeGrid({ code, pc }: Props) {
             const actualX = x + dimensions.minX;
             const actualY = y + dimensions.minY;
             const isPC = actualX === pc.x && actualY === pc.y;
+            const bpKey = `${actualX},${actualY}`;
+            const isBreakpoint = breakpoints.has(bpKey);
+            const isHovered = hoveredCell?.x === actualX && hoveredCell?.y === actualY;
             
             return (
               <div
@@ -156,7 +164,11 @@ export default function BefungeGrid({ code, pc }: Props) {
                 style={{
                   width: `${cellSize}px`,
                   height: `${cellSize}px`,
-                  background: isPC ? 'rgba(124, 196, 255, 0.25)' : '#15181c',
+                  background: isBreakpoint 
+                    ? 'rgba(255, 100, 100, 0.3)' 
+                    : isPC 
+                    ? 'rgba(124, 196, 255, 0.25)' 
+                    : '#15181c',
                   border: isPC ? '2px solid var(--accent)' : '1px solid #2a2f36',
                   display: 'flex',
                   alignItems: 'center',
@@ -165,9 +177,31 @@ export default function BefungeGrid({ code, pc }: Props) {
                   whiteSpace: 'pre',
                   transition: 'all 0.1s ease',
                   boxSizing: 'border-box',
-                  fontWeight: ch === ' ' ? 'normal' : '600'
+                  fontWeight: ch === ' ' ? 'normal' : '600',
+                  cursor: mode === 'interpreter' ? 'pointer' : 'default',
+                  position: 'relative'
                 }}
+                onClick={() => {
+                  if (mode === 'interpreter' && onToggleBreakpoint) {
+                    onToggleBreakpoint(actualX, actualY);
+                  }
+                }}
+                onMouseEnter={() => setHoveredCell({ x: actualX, y: actualY })}
+                onMouseLeave={() => setHoveredCell(null)}
+                title={isHovered && mode === 'interpreter' ? `(${actualX}, ${actualY})` : undefined}
               >
+                {isBreakpoint && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '2px',
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: '#ff6464',
+                    border: '1px solid #fff'
+                  }} />
+                )}
                 {ch}
               </div>
             );
