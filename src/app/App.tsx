@@ -232,6 +232,32 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
+  // Handle window resize and orientation changes
+  useEffect(() => {
+    const handleResize = () => {
+      // Force a re-render to recalculate layout
+      // This is needed when screen size changes significantly (e.g., phone rotation)
+      window.dispatchEvent(new Event('resize'));
+    };
+    
+    // Listen for orientation changes
+    window.addEventListener('orientationchange', handleResize);
+    
+    // Also listen for resize events with debouncing
+    let resizeTimeout: number;
+    const debouncedResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = window.setTimeout(handleResize, 100);
+    };
+    window.addEventListener('resize', debouncedResize);
+    
+    return () => {
+      window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('resize', debouncedResize);
+      clearTimeout(resizeTimeout);
+    };
+  }, []);
+
   // Save app state periodically when code, inputQueue, or mode changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
