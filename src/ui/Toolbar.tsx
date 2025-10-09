@@ -13,6 +13,7 @@ export default function Toolbar(props: {
   setSpeed: (n: number) => void;
   inputQueue: string;
   setInputQueue: (s: string) => void;
+  hasHistory: boolean;
 
   // 追加: ファイルアップロード
   onOpenFile: (content: string) => void;
@@ -37,7 +38,7 @@ export default function Toolbar(props: {
 }) {
   const {
     onRun, onStop, onPauseResume, onStep, onStepBack, onShare, running, status, speed, setSpeed,
-    inputQueue, setInputQueue,
+    inputQueue, setInputQueue, hasHistory,
     onOpenFile,
     onSaveSnapshot, onToggleHistory,
     onOpenInputModal,
@@ -77,7 +78,7 @@ export default function Toolbar(props: {
           {running ? '⏸ 一時停止' : '▶ 再開'}
         </button>
         <button onClick={onStep} disabled={running}>ステップ</button>
-        <button onClick={onStepBack} disabled={running || mode === 'edit'}>⏪ ステップ戻し</button>
+        <button onClick={onStepBack} disabled={running || mode === 'edit' || !hasHistory}>⏪ ステップ戻し</button>
         <button onClick={onStop}>停止/リセット</button>
         <span className="badge">{status}</span>
 

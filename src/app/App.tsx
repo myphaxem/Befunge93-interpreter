@@ -213,9 +213,10 @@ export default function App() {
       const s = e.data;
       if (!s) return;
       
-      // Save current state to history before updating (only in interpreter mode and not halted)
+      // Save current state to history before updating (only in interpreter mode)
       // Skip if we're restoring from a step back operation
-      if (mode === 'interpreter' && status !== 'halted' && !running && !skipHistorySaveRef.current) {
+      // Save history even when running to support pause -> step back
+      if (mode === 'interpreter' && !skipHistorySaveRef.current) {
         setStateHistory(prev => {
           const newHistory = [...prev, {
             stack: [...stack],
@@ -523,6 +524,7 @@ export default function App() {
           setSpeed={updateSpeed}
           inputQueue={inputQueueText}
           setInputQueue={setInputQueueText}
+          hasHistory={stateHistory.length > 0}
 
           onOpenFile={onOpenFile}
 
