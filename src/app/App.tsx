@@ -135,6 +135,9 @@ export default function App() {
     inputQueue: string;
   }>>([]);
   const maxHistorySize = 100;
+  
+  // Flag to prevent saving history when restoring from step back
+  const skipHistorySaveRef = useRef(false);
 
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
@@ -211,7 +214,8 @@ export default function App() {
       if (!s) return;
       
       // Save current state to history before updating (only in interpreter mode and not halted)
-      if (mode === 'interpreter' && status !== 'halted' && !running) {
+      // Skip if we're restoring from a step back operation
+      if (mode === 'interpreter' && status !== 'halted' && !running && !skipHistorySaveRef.current) {
         setStateHistory(prev => {
           const newHistory = [...prev, {
             stack: [...stack],
@@ -231,6 +235,11 @@ export default function App() {
           }
           return newHistory;
         });
+      }
+      
+      // Reset the skip flag after processing
+      if (skipHistorySaveRef.current) {
+        skipHistorySaveRef.current = false;
       }
       
       if (Array.isArray(s.outputs)) {
@@ -397,6 +406,9 @@ export default function App() {
   
   const onStepBack = () => {
     if (stateHistory.length === 0) return;
+    
+    // Set flag to skip saving history when restore message is received
+    skipHistorySaveRef.current = true;
     
     // Pop the last state from history and restore it
     setStateHistory(prev => {
