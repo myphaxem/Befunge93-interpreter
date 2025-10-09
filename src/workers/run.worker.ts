@@ -13,6 +13,7 @@ type Msg =
   | { type: 'step' }
   | { type: 'run'; steps: number }
   | { type: 'provideInput'; values: number[] }
+  | { type: 'restore'; state: { stack: number[]; pc: { x: number; y: number; dx: number; dy: number }; grid: number[][]; inputQueue: number[] } }
   | { type: 'stop' };
 
 self.onmessage = (e: MessageEvent<Msg>) => {
@@ -80,6 +81,23 @@ self.onmessage = (e: MessageEvent<Msg>) => {
     }
     case 'stop': {
       running = false; break;
+    }
+    case 'restore': {
+      if (!vm) break;
+      // Restore VM state from history
+      vm.stack = [...msg.state.stack];
+      vm.x = msg.state.pc.x;
+      vm.y = msg.state.pc.y;
+      vm.dx = msg.state.pc.dx;
+      vm.dy = msg.state.pc.dy;
+      vm.grid = msg.state.grid.map(row => [...row]);
+      vm.inputQueue = [...msg.state.inputQueue];
+      vm.halted = false;
+      vm.waitingInput = false;
+      running = false;
+      // @ts-ignore
+      (self as any).postMessage(toState(vm.snapshot(), []));
+      break;
     }
   }
 };

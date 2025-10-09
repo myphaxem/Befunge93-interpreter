@@ -3,7 +3,9 @@ import React from 'react';
 export default function Toolbar(props: {
   onRun: () => void;
   onStop: () => void;
+  onPauseResume: () => void;
   onStep: () => void;
+  onStepBack: () => void;
   onShare: () => void;
   running: boolean;
   status: string;
@@ -34,7 +36,7 @@ export default function Toolbar(props: {
   setSeed: (s: string) => void;
 }) {
   const {
-    onRun, onStop, onStep, onShare, running, status, speed, setSpeed,
+    onRun, onStop, onPauseResume, onStep, onStepBack, onShare, running, status, speed, setSpeed,
     inputQueue, setInputQueue,
     onOpenFile,
     onSaveSnapshot, onToggleHistory,
@@ -71,7 +73,11 @@ export default function Toolbar(props: {
     <div className="toolbar">
       <div className="toolbar-main row">
         <button className="primary" onClick={onRun} disabled={running}>実行</button>
+        <button onClick={onPauseResume} disabled={mode === 'edit'}>
+          {running ? '⏸ 一時停止' : '▶ 再開'}
+        </button>
         <button onClick={onStep} disabled={running}>ステップ</button>
+        <button onClick={onStepBack} disabled={running || mode === 'edit'}>⏪ ステップ戻し</button>
         <button onClick={onStop}>停止/リセット</button>
         <span className="badge">{status}</span>
 

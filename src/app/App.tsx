@@ -121,6 +121,21 @@ export default function App() {
   const [runtimeGrid, setRuntimeGrid] = useState<number[][] | null>(null);
   const [seed, setSeed] = useState(''); // seed input (empty string means auto)
 
+  // History tracking for step back (store last 100 states)
+  const [stateHistory, setStateHistory] = useState<Array<{
+    stack: number[];
+    pc: { x: number; y: number };
+    dir: { dx: number; dy: number };
+    grid: number[][];
+    textOut: string;
+    numOut: number[];
+    errorOut: string;
+    status: string;
+    exitCode: number | null;
+    inputQueue: string;
+  }>>([]);
+  const maxHistorySize = 100;
+
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
 
@@ -194,6 +209,30 @@ export default function App() {
     function onMsg(e: MessageEvent<any>) {
       const s = e.data;
       if (!s) return;
+      
+      // Save current state to history before updating (only in interpreter mode and not halted)
+      if (mode === 'interpreter' && status !== 'halted' && !running) {
+        setStateHistory(prev => {
+          const newHistory = [...prev, {
+            stack: [...stack],
+            pc: { ...pc },
+            dir: { ...dir },
+            grid: runtimeGrid ? runtimeGrid.map(row => [...row]) : [],
+            textOut,
+            numOut: [...numOut],
+            errorOut,
+            status,
+            exitCode,
+            inputQueue: inputQueueText
+          }];
+          // Keep only last maxHistorySize states
+          if (newHistory.length > maxHistorySize) {
+            newHistory.shift();
+          }
+          return newHistory;
+        });
+      }
+      
       if (Array.isArray(s.outputs)) {
         for (const o of s.outputs) {
           if (o.kind === 'text') setTextOut(prev => prev + o.ch);
@@ -220,7 +259,7 @@ export default function App() {
     }
     worker.addEventListener('message', onMsg);
     return () => { worker.removeEventListener('message', onMsg); };
-  }, [worker, updateRunning]);
+  }, [worker, updateRunning, mode, status, running, stack, pc, dir, runtimeGrid, textOut, numOut, errorOut, exitCode]);
 
   useEffect(() => {
     // URL 共有対応
@@ -311,6 +350,7 @@ export default function App() {
     setExitCode(null);
     updateRunning(true);
     setMode('interpreter');
+    setStateHistory([]); // Clear history on new run
     worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
     startLoop();
   };
@@ -325,6 +365,18 @@ export default function App() {
     setExitCode(null);
     setStatus('idle');
   };
+  const onPauseResume = () => {
+    if (running) {
+      // Pause
+      updateRunning(false);
+      stopLoop();
+      setMode('interpreter');
+    } else if (mode === 'interpreter' && status !== 'halted') {
+      // Resume from pause
+      updateRunning(true);
+      startLoop();
+    }
+  };
   const onStep = () => { 
     if (mode === 'edit' || status === 'halted') {
       // Load current code when stepping from edit mode or after execution has halted
@@ -335,12 +387,55 @@ export default function App() {
       setErrorOut('');
       setExitCode(null);
       setStatus('idle');
+      setStateHistory([]); // Clear history on new execution
     }
     setMode('interpreter');
     updateRunning(false); 
     stopLoop(); 
     worker.postMessage({ type: 'step' }); 
   };
+  
+  const onStepBack = () => {
+    if (stateHistory.length === 0) return;
+    
+    // Pop the last state from history and restore it
+    setStateHistory(prev => {
+      if (prev.length === 0) return prev;
+      const newHistory = [...prev];
+      const lastState = newHistory.pop()!;
+      
+      // Restore the state
+      setStack(lastState.stack);
+      setPC(lastState.pc);
+      setDir(lastState.dir);
+      setRuntimeGrid(lastState.grid);
+      setTextOut(lastState.textOut);
+      setNumOut(lastState.numOut);
+      setErrorOut(lastState.errorOut);
+      setStatus(lastState.status);
+      setExitCode(lastState.exitCode);
+      setInputQueueText(lastState.inputQueue);
+      
+      // Restore VM state in worker
+      worker.postMessage({ 
+        type: 'restore', 
+        state: { 
+          stack: lastState.stack, 
+          pc: { 
+            x: lastState.pc.x, 
+            y: lastState.pc.y, 
+            dx: lastState.dir.dx, 
+            dy: lastState.dir.dy 
+          }, 
+          grid: lastState.grid,
+          inputQueue: parseInputQueue(lastState.inputQueue)
+        } 
+      });
+      
+      return newHistory;
+    });
+  };
+  
   const onShare = () => { const h = encodeToHash(code); history.replaceState(null, '', h); navigator.clipboard?.writeText(location.href); alert('共有URLをクリップボードにコピーしました\n' + location.href); };
 
   // ファイル名から読み込み
@@ -406,7 +501,9 @@ export default function App() {
         <Toolbar
           onRun={onRun}
           onStop={onStop}
+          onPauseResume={onPauseResume}
           onStep={onStep}
+          onStepBack={onStepBack}
           onShare={onShare}
           running={running}
           status={status}
