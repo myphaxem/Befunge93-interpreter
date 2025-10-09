@@ -3,7 +3,9 @@ import React from 'react';
 export default function Toolbar(props: {
   onRun: () => void;
   onStop: () => void;
+  onPauseResume: () => void;
   onStep: () => void;
+  onStepBack: () => void;
   onShare: () => void;
   running: boolean;
   status: string;
@@ -34,7 +36,7 @@ export default function Toolbar(props: {
   setSeed: (s: string) => void;
 }) {
   const {
-    onRun, onStop, onStep, onShare, running, status, speed, setSpeed,
+    onRun, onStop, onPauseResume, onStep, onStepBack, onShare, running, status, speed, setSpeed,
     inputQueue, setInputQueue,
     onOpenFile,
     onSaveSnapshot, onToggleHistory,
@@ -71,7 +73,11 @@ export default function Toolbar(props: {
     <div className="toolbar">
       <div className="toolbar-main row">
         <button className="primary" onClick={onRun} disabled={running}>実行</button>
+        <button onClick={onPauseResume} disabled={mode === 'edit'}>
+          {running ? '⏸ 一時停止' : '▶ 再開'}
+        </button>
         <button onClick={onStep} disabled={running}>ステップ</button>
+        <button onClick={onStepBack} disabled={running || mode === 'edit'}>⏪ ステップ戻し</button>
         <button onClick={onStop}>停止/リセット</button>
         <span className="badge">{status}</span>
 
@@ -110,7 +116,32 @@ export default function Toolbar(props: {
             title={`${speed} ステップ/秒`}
             className="speed-slider"
           />
-          <span className="speed-display">{speed}</span>
+          <input
+            type="number"
+            min={1}
+            max={10000}
+            value={speed}
+            onChange={e => {
+              const val = parseInt(e.target.value);
+              if (!isNaN(val) && val >= 1 && val <= 10000) {
+                setSpeed(val);
+              }
+            }}
+            style={{
+              width: 60,
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: 13,
+              padding: '4px 8px',
+              background: '#0f1216',
+              border: '1px solid #2a2f36',
+              borderRadius: 4,
+              color: '#e8eaed',
+              textAlign: 'right'
+            }}
+            title="速度を直接入力"
+            className="speed-input"
+          />
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>ステップ/秒</span>
 
           <label>seed:</label>
           <input 
@@ -193,15 +224,39 @@ export default function Toolbar(props: {
       {menuExpanded && (
         <div className="toolbar-mobile-menu">
           <div className="row" style={{ marginBottom: 8 }}>
-            <label>速度: {speed}</label>
+            <label>速度:</label>
             <input 
               type="range" 
               min={1} 
               max={10000} 
               value={speed} 
               onChange={e => setSpeed(parseInt(e.target.value))} 
-              style={{ flex: 1, minWidth: 100 }} 
+              style={{ flex: 1, minWidth: 80 }} 
               title={`${speed} ステップ/秒`}
+            />
+            <input
+              type="number"
+              min={1}
+              max={10000}
+              value={speed}
+              onChange={e => {
+                const val = parseInt(e.target.value);
+                if (!isNaN(val) && val >= 1 && val <= 10000) {
+                  setSpeed(val);
+                }
+              }}
+              style={{ 
+                width: 60,
+                fontFamily: 'ui-monospace, monospace',
+                fontSize: 13,
+                padding: '4px 8px',
+                background: '#0f1216',
+                border: '1px solid #2a2f36',
+                borderRadius: 4,
+                color: '#e8eaed',
+                textAlign: 'right'
+              }}
+              title="速度を直接入力"
             />
           </div>
 

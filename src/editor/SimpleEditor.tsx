@@ -73,18 +73,22 @@ export default function SimpleEditor({
       
       // Find current line and column position
       const beforeCursor = value.substring(0, start);
-      const lastNewlinePos = beforeCursor.lastIndexOf('\n');
-      const currentColumn = lastNewlinePos === -1 ? start : start - lastNewlinePos - 1;
       const lines = value.split('\n');
       const currentLineIdx = beforeCursor.split('\n').length - 1;
+      const currentLine = lines[currentLineIdx] || '';
       
       // Check if we can add another line
       if (currentLineIdx >= MAX_ROWS - 1) {
         return; // Ignore if would exceed max rows
       }
       
-      // Insert newline + spaces to match column (currentColumn - 1, but at least 0)
-      const spacesToAdd = Math.max(0, currentColumn - 1);
+      // Calculate cursor position on current line
+      const lastNewlinePos = beforeCursor.lastIndexOf('\n');
+      const currentColumn = lastNewlinePos === -1 ? start : start - lastNewlinePos - 1;
+      
+      // For consecutive newlines (empty lines), maintain the column from the previous newline
+      // Otherwise, use currentColumn
+      const spacesToAdd = currentLine.trim() === '' && currentColumn > 0 ? currentColumn : Math.max(0, currentColumn);
       const padding = ' '.repeat(Math.min(spacesToAdd, MAX_COLS)); // Constrain padding to max cols
       const newValue = value.substring(0, start) + '\n' + padding + value.substring(end);
       const constrained = constrainValue(newValue);
@@ -122,7 +126,8 @@ export default function SimpleEditor({
       } else if (e.key === 'ArrowDown') {
         targetLineIdx = currentLineIdx + 1;
         targetColumn = currentColumn;
-        if (targetLineIdx < lines.length && lines[targetLineIdx]!.length < targetColumn) {
+        // Need padding if line doesn't exist or is shorter than target column
+        if (targetLineIdx >= lines.length || lines[targetLineIdx]!.length < targetColumn) {
           needsPadding = true;
         }
       } else if (e.key === 'ArrowRight') {

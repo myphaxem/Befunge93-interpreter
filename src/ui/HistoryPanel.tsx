@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   createEntry, createFolder, deleteEntry, deleteFolder, getEntry, getLastOpen,
-  listEntries, listFolders, moveEntry, renameEntry, setLastOpen
+  listEntries, listFolders, moveEntry, renameEntry, setLastOpen, updateEntryCode
 } from '../runtime/ts/history';
 
 type Props = {
@@ -138,6 +138,13 @@ export default function HistoryPanel({ visible, onClose, currentCode, onLoadCode
     onClose();
   };
 
+  const onOverwrite = () => {
+    if (!selected) return;
+    if (!confirm(`「${selected.name}」を現在のコードで上書きしますか？`)) return;
+    updateEntryCode(selected.id, currentCode);
+    refresh();
+  };
+
   if (!visible) return null;
 
   // 簡易モーダル（インラインスタイル）
@@ -224,6 +231,7 @@ export default function HistoryPanel({ visible, onClose, currentCode, onLoadCode
         <div style={{ overflow: 'auto' }}>
           <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
             <button onClick={onSaveNew} style={{ fontSize: 12, padding: '4px 8px' }}>＋保存</button>
+            <button onClick={onOverwrite} disabled={!selected} style={{ fontSize: 12, padding: '4px 8px' }}>上書き</button>
             <button onClick={onRename} disabled={!selected} style={{ fontSize: 12, padding: '4px 8px' }}>名前変更</button>
             <button onClick={onMove} disabled={!selected} style={{ fontSize: 12, padding: '4px 8px' }}>移動</button>
             <button onClick={onDelete} disabled={!selected} style={{ fontSize: 12, padding: '4px 8px' }}>削除</button>
