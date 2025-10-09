@@ -138,6 +138,9 @@ export default function App() {
   
   // Flag to prevent saving history when restoring from step back
   const skipHistorySaveRef = useRef(false);
+  
+  // Flag to save history on next message after pausing
+  const saveOnNextMessageRef = useRef(false);
 
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
@@ -213,10 +216,13 @@ export default function App() {
       const s = e.data;
       if (!s) return;
       
-      // Save current state to history before updating (only in interpreter mode)
+      // Save current state to history before updating (only in interpreter mode and not running)
       // Skip if we're restoring from a step back operation
-      // Save history even when running to support pause -> step back
-      if (mode === 'interpreter' && !skipHistorySaveRef.current) {
+      // Also save if we just paused (saveOnNextMessageRef is true)
+      const shouldSaveHistory = mode === 'interpreter' && !skipHistorySaveRef.current && 
+        ((!running && status !== 'halted') || saveOnNextMessageRef.current);
+      
+      if (shouldSaveHistory) {
         setStateHistory(prev => {
           const newHistory = [...prev, {
             stack: [...stack],
@@ -236,6 +242,7 @@ export default function App() {
           }
           return newHistory;
         });
+        saveOnNextMessageRef.current = false; // Reset flag after saving
       }
       
       // Reset the skip flag after processing
@@ -381,6 +388,8 @@ export default function App() {
       updateRunning(false);
       stopLoop();
       setMode('interpreter');
+      // Set flag to save history on next message
+      saveOnNextMessageRef.current = true;
     } else if (mode === 'interpreter' && status !== 'halted') {
       // Resume from pause
       updateRunning(true);
