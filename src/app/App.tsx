@@ -114,6 +114,7 @@ export default function App() {
   const [errorOut, setErrorOut] = useState('');
   const textOutRef = useRef('');
   const errorOutRef = useRef('');
+  const isRestoringRef = useRef(false); // Flag to prevent history saving during restore
   const [stack, setStack] = useState<number[]>([]);
   const [pc, setPC] = useState({ x: 0, y: 0 });
   const [dir, setDir] = useState({ dx: 1, dy: 0 });
@@ -257,7 +258,8 @@ export default function App() {
       const currentStatus = s.halted ? 'halted' : (s.waitingInput ? 'waiting-input' : (runningRef.current ? 'running' : 'idle'));
       
       // Save state to history AFTER updating
-      if (mode === 'interpreter') {
+      // Skip if we're currently restoring from history to avoid circular saves
+      if (mode === 'interpreter' && !isRestoringRef.current) {
         setStateHistory(prev => {
           const newHistory = [...prev, {
             stack: s.stack ? [...s.stack] : [],
@@ -301,6 +303,12 @@ export default function App() {
           stopLoop();
           setStatus('idle');
         }
+      }
+      
+      // Clear restore flag after processing message
+      if (isRestoringRef.current) {
+        isRestoringRef.current = false;
+        console.log('Restore flag cleared');
       }
     }
     worker.addEventListener('message', onMsg);
@@ -445,46 +453,59 @@ export default function App() {
   };
   
   const onStepBack = () => {
-    if (stateHistory.length === 0) return;
+    console.log(`onStepBack called, history length: ${stateHistory.length}`);
+    if (stateHistory.length < 2) {
+      console.log('Need at least 2 history entries to step back');
+      return;
+    }
     
     // Stop execution first for safety
     updateRunning(false);
     stopLoop();
     
-    // Pop the last state from history and restore it
+    // Set flag to prevent history saving during restore
+    isRestoringRef.current = true;
+    
+    // Pop TWO states: the current state and the previous state
+    // We restore to the previous state (not the current one)
     setStateHistory(prev => {
-      if (prev.length === 0) return prev;
+      if (prev.length < 2) return prev;
       const newHistory = [...prev];
-      const lastState = newHistory.pop()!;
+      newHistory.pop(); // Discard current state
+      const previousState = newHistory.pop()!; // Get the previous state
+      
+      console.log(`Restoring state: PC=(${previousState.pc.x},${previousState.pc.y}), stack size=${previousState.stack.length}, halted=${previousState.halted}`);
       
       // Restore the state
-      setStack(lastState.stack);
-      setPC(lastState.pc);
-      setDir(lastState.dir);
-      setRuntimeGrid(lastState.grid);
-      setTextOut(lastState.textOut);
-      setErrorOut(lastState.errorOut);
-      setStatus(lastState.status);
-      setExitCode(lastState.exitCode);
+      setStack(previousState.stack);
+      setPC(previousState.pc);
+      setDir(previousState.dir);
+      setRuntimeGrid(previousState.grid);
+      setTextOut(previousState.textOut);
+      textOutRef.current = previousState.textOut;
+      setErrorOut(previousState.errorOut);
+      errorOutRef.current = previousState.errorOut;
+      setStatus(previousState.status);
+      setExitCode(previousState.exitCode);
       // Don't change inputQueueText (it's for user editing), keep it as is
       
       // Restore VM state in worker with all necessary fields
       worker.postMessage({ 
         type: 'restore', 
         state: { 
-          stack: lastState.stack, 
+          stack: previousState.stack, 
           pc: { 
-            x: lastState.pc.x, 
-            y: lastState.pc.y, 
-            dx: lastState.dir.dx, 
-            dy: lastState.dir.dy 
+            x: previousState.pc.x, 
+            y: previousState.pc.y, 
+            dx: previousState.dir.dx, 
+            dy: previousState.dir.dy 
           }, 
-          grid: lastState.grid,
-          inputQueue: lastState.inputQueue, // Use actual VM input queue from history
-          stringMode: lastState.stringMode,
-          rngSeed: lastState.rngSeed,
-          halted: lastState.halted,
-          waitingInput: lastState.waitingInput
+          grid: previousState.grid,
+          inputQueue: previousState.inputQueue, // Use actual VM input queue from history
+          stringMode: previousState.stringMode,
+          rngSeed: previousState.rngSeed,
+          halted: previousState.halted,
+          waitingInput: previousState.waitingInput
         } 
       });
       
