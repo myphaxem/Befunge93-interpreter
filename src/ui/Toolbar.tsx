@@ -45,6 +45,7 @@ export default function Toolbar(props: {
   } = props;
 
   const [sampleValue, setSampleValue] = React.useState('');
+  const [menuExpanded, setMenuExpanded] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,109 +68,213 @@ export default function Toolbar(props: {
   };
 
   return (
-    <div className="toolbar row">
-      <button className="primary" onClick={onRun} disabled={running}>実行</button>
-      <button onClick={onStep} disabled={running}>ステップ</button>
-      <button onClick={onStop}>停止/リセット</button>
-      <span className="badge">{status}</span>
+    <div className="toolbar">
+      <div className="toolbar-main row">
+        <button className="primary" onClick={onRun} disabled={running}>実行</button>
+        <button onClick={onStep} disabled={running}>ステップ</button>
+        <button onClick={onStop}>停止/リセット</button>
+        <span className="badge">{status}</span>
 
-      <button 
-        onClick={onToggleMode} 
-        className={`mode-badge ${mode}`}
-        title={mode === 'edit' ? '編集モード（クリックでインタープリターモードへ）' : 'インタープリターモード（クリックで編集モードへ）'}
-      >
-        {mode === 'edit' ? '📝 Edit' : '▶️ Interp'}
-      </button>
-
-      <div className="row" style={{ marginLeft: 'auto' }}>
-        <label>速度: </label>
-        <input 
-          type="range" 
-          min={1} 
-          max={10000} 
-          value={speed} 
-          onChange={e => setSpeed(parseInt(e.target.value))} 
-          style={{ width: 150 }} 
-          title={`${speed} ステップ/秒`}
-          className="speed-slider"
-        />
-        <span className="speed-display">{speed}</span>
-
-        <label>seed:</label>
-        <input 
-          type="text" 
-          value={seed}
-          onChange={e => setSeed(e.target.value)}
-          placeholder="auto"
-          style={{ 
-            width: 80,
-            fontFamily: 'ui-monospace, monospace',
-            fontSize: 13,
-            padding: '4px 8px',
-            background: '#0f1216',
-            border: '1px solid #2a2f36',
-            borderRadius: 4,
-            color: '#e8eaed'
-          }}
-          title="乱数シード（空欄で自動）"
-        />
-
-        <label>stdin:</label>
         <button 
-          onClick={onOpenInputModal}
-          style={{ 
-            fontFamily: 'ui-monospace, monospace', 
-            fontSize: 13,
-            maxWidth: 180,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            textAlign: 'left',
-            padding: '4px 8px'
-          }}
-          title={inputQueue || '標準入力を編集...'}
+          onClick={onToggleMode} 
+          className={`mode-badge ${mode}`}
+          title={mode === 'edit' ? '編集モード（クリックでインタープリターモードへ）' : 'インタープリターモード（クリックで編集モードへ）'}
         >
-          {inputQueue ? inputQueue.replace(/\n/g, '⏎ ') : '（編集...）'}
+          {mode === 'edit' ? '📝 Edit' : '▶️ Interp'}
         </button>
 
-        <div className="hr" style={{ width: 1, height: 24 }} />
-
-        {/* ファイルアップロード */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".txt,.bf,.bf93,.b,.b93"
-          onChange={handleFileChange}
-          style={{ display: 'none' }}
-        />
-        <button onClick={() => fileInputRef.current?.click()}>開く</button>
-
-        {/* 任意のサンプル選択も残す */}
-        <select 
-          value={sampleValue} 
-          onChange={(e) => {
-            const val = e.target.value;
-            setSampleValue(val);
-            if (val) {
-              loadSample(val);
-              // Reset to empty so same sample can be loaded again
-              setTimeout(() => setSampleValue(''), 0);
-            }
+        {/* Mobile menu toggle */}
+        <button 
+          className="menu-toggle"
+          onClick={() => setMenuExpanded(!menuExpanded)}
+          style={{
+            marginLeft: 'auto',
+            padding: '6px 12px',
+            fontSize: 18
           }}
+          title="メニューを表示/非表示"
         >
-          <option value="" disabled>サンプル...</option>
-          <option value="hello">hello_world.bf</option>
-          <option value="cat">cat.bf</option>
-          <option value="sieve">sieve.bf</option>
-          <option value="random">random.bf</option>
-        </select>
+          {menuExpanded ? '✕' : '☰'}
+        </button>
 
-        <div className="hr" style={{ width: 1, height: 24 }} />
+        {/* Desktop controls - hidden on mobile */}
+        <div className="row toolbar-controls" style={{ marginLeft: 'auto' }}>
+          <label>速度: </label>
+          <input 
+            type="range" 
+            min={1} 
+            max={10000} 
+            value={speed} 
+            onChange={e => setSpeed(parseInt(e.target.value))} 
+            style={{ width: 150 }} 
+            title={`${speed} ステップ/秒`}
+            className="speed-slider"
+          />
+          <span className="speed-display">{speed}</span>
 
-        <button onClick={onSaveSnapshot}>保存</button>
-        <button onClick={onToggleHistory}>履歴</button>
-        <button onClick={onShare}>共有</button>
+          <label>seed:</label>
+          <input 
+            type="text" 
+            value={seed}
+            onChange={e => setSeed(e.target.value)}
+            placeholder="auto"
+            style={{ 
+              width: 80,
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: 13,
+              padding: '4px 8px',
+              background: '#0f1216',
+              border: '1px solid #2a2f36',
+              borderRadius: 4,
+              color: '#e8eaed'
+            }}
+            title="乱数シード（空欄で自動）"
+          />
+
+          <label>stdin:</label>
+          <button 
+            onClick={onOpenInputModal}
+            style={{ 
+              fontFamily: 'ui-monospace, monospace', 
+              fontSize: 13,
+              maxWidth: 180,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              textAlign: 'left',
+              padding: '4px 8px'
+            }}
+            title={inputQueue || '標準入力を編集...'}
+          >
+            {inputQueue ? inputQueue.replace(/\n/g, '⏎ ') : '（編集...）'}
+          </button>
+
+          <div className="hr" style={{ width: 1, height: 24 }} />
+
+          {/* ファイルアップロード */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.bf,.bf93,.b,.b93"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          <button onClick={() => fileInputRef.current?.click()}>開く</button>
+
+          {/* 任意のサンプル選択も残す */}
+          <select 
+            value={sampleValue} 
+            onChange={(e) => {
+              const val = e.target.value;
+              setSampleValue(val);
+              if (val) {
+                loadSample(val);
+                // Reset to empty so same sample can be loaded again
+                setTimeout(() => setSampleValue(''), 0);
+              }
+            }}
+          >
+            <option value="" disabled>サンプル...</option>
+            <option value="hello">hello_world.bf</option>
+            <option value="cat">cat.bf</option>
+            <option value="sieve">sieve.bf</option>
+            <option value="random">random.bf</option>
+          </select>
+
+          <div className="hr" style={{ width: 1, height: 24 }} />
+
+          <button onClick={onSaveSnapshot}>保存</button>
+          <button onClick={onToggleHistory}>履歴</button>
+          <button onClick={onShare}>共有</button>
+        </div>
       </div>
+
+      {/* Mobile expanded menu */}
+      {menuExpanded && (
+        <div className="toolbar-mobile-menu">
+          <div className="row" style={{ marginBottom: 8 }}>
+            <label>速度: {speed}</label>
+            <input 
+              type="range" 
+              min={1} 
+              max={10000} 
+              value={speed} 
+              onChange={e => setSpeed(parseInt(e.target.value))} 
+              style={{ flex: 1, minWidth: 100 }} 
+              title={`${speed} ステップ/秒`}
+            />
+          </div>
+
+          <div className="row" style={{ marginBottom: 8 }}>
+            <label>seed:</label>
+            <input 
+              type="text" 
+              value={seed}
+              onChange={e => setSeed(e.target.value)}
+              placeholder="auto"
+              style={{ 
+                flex: 1,
+                fontFamily: 'ui-monospace, monospace',
+                fontSize: 13,
+                padding: '4px 8px',
+                background: '#0f1216',
+                border: '1px solid #2a2f36',
+                borderRadius: 4,
+                color: '#e8eaed'
+              }}
+              title="乱数シード（空欄で自動）"
+            />
+          </div>
+
+          <div className="row" style={{ marginBottom: 8 }}>
+            <label>stdin:</label>
+            <button 
+              onClick={onOpenInputModal}
+              style={{ 
+                flex: 1,
+                fontFamily: 'ui-monospace, monospace', 
+                fontSize: 13,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                textAlign: 'left',
+                padding: '4px 8px'
+              }}
+              title={inputQueue || '標準入力を編集...'}
+            >
+              {inputQueue ? inputQueue.replace(/\n/g, '⏎ ') : '（編集...）'}
+            </button>
+          </div>
+
+          <div className="row" style={{ marginBottom: 8, gap: 8 }}>
+            <button onClick={() => fileInputRef.current?.click()} style={{ flex: 1 }}>開く</button>
+            <select 
+              value={sampleValue} 
+              onChange={(e) => {
+                const val = e.target.value;
+                setSampleValue(val);
+                if (val) {
+                  loadSample(val);
+                  setTimeout(() => setSampleValue(''), 0);
+                }
+              }}
+              style={{ flex: 1 }}
+            >
+              <option value="" disabled>サンプル...</option>
+              <option value="hello">hello_world.bf</option>
+              <option value="cat">cat.bf</option>
+              <option value="sieve">sieve.bf</option>
+              <option value="random">random.bf</option>
+            </select>
+          </div>
+
+          <div className="row" style={{ gap: 8 }}>
+            <button onClick={onSaveSnapshot} style={{ flex: 1 }}>保存</button>
+            <button onClick={onToggleHistory} style={{ flex: 1 }}>履歴</button>
+            <button onClick={onShare} style={{ flex: 1 }}>共有</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
