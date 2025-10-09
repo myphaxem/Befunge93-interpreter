@@ -13,7 +13,7 @@ type Msg =
   | { type: 'step' }
   | { type: 'run'; steps: number }
   | { type: 'provideInput'; values: number[] }
-  | { type: 'restore'; state: { stack: number[]; pc: { x: number; y: number; dx: number; dy: number }; grid: number[][]; inputQueue: number[] } }
+  | { type: 'restore'; state: { stack: number[]; pc: { x: number; y: number; dx: number; dy: number }; grid: number[][]; inputQueue: number[]; stringMode: boolean; rngSeed: number; halted: boolean; waitingInput: boolean } }
   | { type: 'stop' };
 
 self.onmessage = (e: MessageEvent<Msg>) => {
@@ -62,21 +62,15 @@ self.onmessage = (e: MessageEvent<Msg>) => {
       let steps = msg.steps;
       while (steps-- > 0) {
         const s = vm.step();
-        if (vm.outputs.length) {
-          // flush バッファ（UI を更新しつつスムーズに）
-          let error: string | undefined;
-          if (s.exitCode === 136) error = 'Runtime error: division/modulo by zero';
-          else if (s.exitCode === 1) error = 'Runtime error: p/g command out of bounds';
-          // @ts-ignore
-          (self as any).postMessage(toState(s, vm.outputs.splice(0), error));
-        }
+        const outs = vm.outputs.splice(0);
+        let error: string | undefined;
+        if (s.exitCode === 136) error = 'Runtime error: division/modulo by zero';
+        else if (s.exitCode === 1) error = 'Runtime error: p/g command out of bounds';
+        // @ts-ignore
+        // Send state after EVERY step so UI can save to history
+        (self as any).postMessage(toState(s, outs, error));
         if (s.halted || s.waitingInput || !running) break;
       }
-      let error: string | undefined;
-      if (vm.exitCode === 136) error = 'Runtime error: division/modulo by zero';
-      else if (vm.exitCode === 1) error = 'Runtime error: p/g command out of bounds';
-      // @ts-ignore
-      (self as any).postMessage(toState(vm.snapshot(), vm.outputs.splice(0), error));
       break;
     }
     case 'stop': {
@@ -92,8 +86,10 @@ self.onmessage = (e: MessageEvent<Msg>) => {
       vm.dy = msg.state.pc.dy;
       vm.grid = msg.state.grid.map(row => [...row]);
       vm.inputQueue = [...msg.state.inputQueue];
-      vm.halted = false;
-      vm.waitingInput = false;
+      vm.stringMode = msg.state.stringMode;
+      vm.halted = msg.state.halted;
+      vm.waitingInput = msg.state.waitingInput;
+      vm.rng.setSeed(msg.state.rngSeed);
       running = false;
       // @ts-ignore
       (self as any).postMessage(toState(vm.snapshot(), []));

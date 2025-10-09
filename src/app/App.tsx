@@ -144,7 +144,11 @@ export default function App() {
     errorOut: string;
     status: string;
     exitCode: number | null;
-    inputQueue: string;
+    inputQueue: number[]; // Store actual VM input queue, not UI text
+    stringMode: boolean;
+    rngSeed: number;
+    halted: boolean;
+    waitingInput: boolean;
   }>>([]);
   const maxHistorySize = 10000;
 
@@ -223,8 +227,8 @@ export default function App() {
       if (!s) return;
       
       // Save current state to history before updating
-      // Save whenever we're in interpreter mode and not currently running continuously
-      if (mode === 'interpreter' && !running) {
+      // Save in interpreter mode for all steps (both running and stepping)
+      if (mode === 'interpreter') {
         setStateHistory(prev => {
           const newHistory = [...prev, {
             stack: [...stack],
@@ -235,7 +239,11 @@ export default function App() {
             errorOut,
             status,
             exitCode,
-            inputQueue: inputQueueText
+            inputQueue: s.inputQueue ? [...s.inputQueue] : [], // Use VM's actual input queue from state
+            stringMode: s.stringMode ?? false,
+            rngSeed: s.rngSeed ?? 1234,
+            halted: s.halted ?? false,
+            waitingInput: s.waitingInput ?? false
           }];
           // Keep only last maxHistorySize states
           if (newHistory.length > maxHistorySize) {
@@ -422,6 +430,10 @@ export default function App() {
   const onStepBack = () => {
     if (stateHistory.length === 0) return;
     
+    // Stop execution first for safety
+    updateRunning(false);
+    stopLoop();
+    
     // Pop the last state from history and restore it
     setStateHistory(prev => {
       if (prev.length === 0) return prev;
@@ -437,9 +449,9 @@ export default function App() {
       setErrorOut(lastState.errorOut);
       setStatus(lastState.status);
       setExitCode(lastState.exitCode);
-      setInputQueueText(lastState.inputQueue);
+      // Don't change inputQueueText (it's for user editing), keep it as is
       
-      // Restore VM state in worker
+      // Restore VM state in worker with all necessary fields
       worker.postMessage({ 
         type: 'restore', 
         state: { 
@@ -451,7 +463,11 @@ export default function App() {
             dy: lastState.dir.dy 
           }, 
           grid: lastState.grid,
-          inputQueue: parseInputQueue(lastState.inputQueue)
+          inputQueue: lastState.inputQueue, // Use actual VM input queue from history
+          stringMode: lastState.stringMode,
+          rngSeed: lastState.rngSeed,
+          halted: lastState.halted,
+          waitingInput: lastState.waitingInput
         } 
       });
       
