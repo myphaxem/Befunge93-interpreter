@@ -312,6 +312,7 @@ export default function App() {
     const tick = () => {
       const now = performance.now();
       const deltaTime = (now - lastTickTime.current) / 1000; // Convert to seconds
+      lastTickTime.current = now;
       
       // Calculate how many steps to run based on elapsed time and desired speed
       // Accumulate fractional steps to handle slow speeds (e.g., 1 step/sec)
@@ -321,7 +322,6 @@ export default function App() {
       if (stepsToRun > 0) {
         worker.postMessage({ type: 'run', steps: stepsToRun });
         accumulatedSteps.current -= stepsToRun;
-        lastTickTime.current = now;
       }
       
       rafRef.current = requestAnimationFrame(tick);
