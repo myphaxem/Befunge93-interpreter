@@ -224,8 +224,18 @@ body {
     overflow-wrap: normal;
 }
 
+.simple-editor.syntax-highlighted {
+    background: transparent;
+    color: transparent;
+    caret-color: var(--fg);
+}
+
 .simple-editor:focus {
     background: #1e1e1e;
+}
+
+.simple-editor.syntax-highlighted:focus {
+    background: transparent;
 }
 
 .simple-editor:read-only {
