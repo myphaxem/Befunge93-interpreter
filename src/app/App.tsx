@@ -112,6 +112,8 @@ export default function App() {
 
   const [textOut, setTextOut] = useState('');
   const [errorOut, setErrorOut] = useState('');
+  const textOutRef = useRef('');
+  const errorOutRef = useRef('');
   const [stack, setStack] = useState<number[]>([]);
   const [pc, setPC] = useState({ x: 0, y: 0 });
   const [dir, setDir] = useState({ dx: 1, dy: 0 });
@@ -226,20 +228,24 @@ export default function App() {
       const s = e.data;
       if (!s) return;
       
-      // Update state first
+      // Process outputs and update textOut/errorOut
       if (Array.isArray(s.outputs)) {
         for (const o of s.outputs) {
           if (o.kind === 'text') {
-            setTextOut(prev => prev + o.ch);
+            textOutRef.current += o.ch;
           } else {
             // For numbers, append the number followed by a space (already done in VM)
-            setTextOut(prev => prev + o.value.toString());
+            textOutRef.current += o.value.toString();
           }
         }
+        setTextOut(textOutRef.current);
       }
       if (s.error) {
-        setErrorOut(prev => prev + s.error + '\n');
+        errorOutRef.current += s.error + '\n';
+        setErrorOut(errorOutRef.current);
       }
+      
+      // Update other state
       if (s.grid) {
         setRuntimeGrid(s.grid);
       }
@@ -247,41 +253,36 @@ export default function App() {
       setPC({ x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 });
       setDir({ dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 });
       
-      // Save state to history AFTER updating (save the state we just received)
-      // This allows us to restore to this exact state later
+      // Determine status
+      const currentStatus = s.halted ? 'halted' : (s.waitingInput ? 'waiting-input' : (runningRef.current ? 'running' : 'idle'));
+      
+      // Save state to history AFTER updating
       if (mode === 'interpreter') {
-        // We need to capture the textOut and errorOut AFTER they've been updated
-        // So we use the callback form to get the latest values
-        setTextOut(currentTextOut => {
-          setErrorOut(currentErrorOut => {
-            setStateHistory(prev => {
-              const newHistory = [...prev, {
-                stack: s.stack ? [...s.stack] : [],
-                pc: { x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 },
-                dir: { dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 },
-                grid: s.grid ? s.grid.map((row: number[]) => [...row]) : [],
-                textOut: currentTextOut,
-                errorOut: currentErrorOut,
-                status: s.halted ? 'halted' : (s.waitingInput ? 'waiting-input' : (runningRef.current ? 'running' : 'idle')),
-                exitCode: s.exitCode ?? null,
-                inputQueue: s.inputQueue ? [...s.inputQueue] : [],
-                stringMode: s.stringMode ?? false,
-                rngSeed: s.rngSeed ?? 1234,
-                halted: s.halted ?? false,
-                waitingInput: s.waitingInput ?? false
-              }];
-              // Keep only last maxHistorySize states
-              if (newHistory.length > maxHistorySize) {
-                newHistory.shift();
-              }
-              return newHistory;
-            });
-            return currentErrorOut;
-          });
-          return currentTextOut;
+        setStateHistory(prev => {
+          const newHistory = [...prev, {
+            stack: s.stack ? [...s.stack] : [],
+            pc: { x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 },
+            dir: { dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 },
+            grid: s.grid ? s.grid.map((row: number[]) => [...row]) : [],
+            textOut: textOutRef.current,
+            errorOut: errorOutRef.current,
+            status: currentStatus,
+            exitCode: s.exitCode ?? null,
+            inputQueue: s.inputQueue ? [...s.inputQueue] : [],
+            stringMode: s.stringMode ?? false,
+            rngSeed: s.rngSeed ?? 1234,
+            halted: s.halted ?? false,
+            waitingInput: s.waitingInput ?? false
+          }];
+          // Keep only last maxHistorySize states
+          if (newHistory.length > maxHistorySize) {
+            newHistory.shift();
+          }
+          return newHistory;
         });
       }
       
+      // Update status state
       if (s.halted) { 
         setStatus('halted'); 
         setExitCode(s.exitCode ?? 0);
@@ -389,6 +390,8 @@ export default function App() {
   };
 
   const onRun = () => {
+    textOutRef.current = '';
+    errorOutRef.current = '';
     setTextOut(''); 
     setErrorOut('');
     setExitCode(null);
@@ -403,6 +406,8 @@ export default function App() {
     stopLoop(); 
     worker.postMessage({ type: 'reset' }); 
     // Clear output states on reset
+    textOutRef.current = '';
+    errorOutRef.current = '';
     setTextOut('');
     setErrorOut('');
     setExitCode(null);
@@ -425,6 +430,8 @@ export default function App() {
       // Load current code when stepping from edit mode or after execution has halted
       worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
       // Clear output states when reloading
+      textOutRef.current = '';
+      errorOutRef.current = '';
       setTextOut('');
       setErrorOut('');
       setExitCode(null);
