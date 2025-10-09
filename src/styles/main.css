@@ -400,7 +400,7 @@ input[type="range"] {
     border-radius: 3px;
     outline: none;
     cursor: pointer;
-    margin: 0;
+    margin: 5px 0;
     padding: 0;
 }
 
