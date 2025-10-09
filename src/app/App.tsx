@@ -326,9 +326,15 @@ export default function App() {
     setStatus('idle');
   };
   const onStep = () => { 
-    if (mode === 'edit') {
-      // Load current code when stepping from edit mode
+    if (mode === 'edit' || status === 'halted') {
+      // Load current code when stepping from edit mode or after execution has halted
       worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
+      // Clear output states when reloading
+      setTextOut('');
+      setNumOut([]);
+      setErrorOut('');
+      setExitCode(null);
+      setStatus('idle');
     }
     setMode('interpreter');
     updateRunning(false); 

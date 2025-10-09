@@ -110,7 +110,32 @@ export default function Toolbar(props: {
             title={`${speed} ステップ/秒`}
             className="speed-slider"
           />
-          <span className="speed-display">{speed}</span>
+          <input
+            type="number"
+            min={1}
+            max={10000}
+            value={speed}
+            onChange={e => {
+              const val = parseInt(e.target.value);
+              if (!isNaN(val) && val >= 1 && val <= 10000) {
+                setSpeed(val);
+              }
+            }}
+            style={{
+              width: 60,
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: 13,
+              padding: '4px 8px',
+              background: '#0f1216',
+              border: '1px solid #2a2f36',
+              borderRadius: 4,
+              color: '#e8eaed',
+              textAlign: 'right'
+            }}
+            title="速度を直接入力"
+            className="speed-input"
+          />
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>ステップ/秒</span>
 
           <label>seed:</label>
           <input 
@@ -193,15 +218,39 @@ export default function Toolbar(props: {
       {menuExpanded && (
         <div className="toolbar-mobile-menu">
           <div className="row" style={{ marginBottom: 8 }}>
-            <label>速度: {speed}</label>
+            <label>速度:</label>
             <input 
               type="range" 
               min={1} 
               max={10000} 
               value={speed} 
               onChange={e => setSpeed(parseInt(e.target.value))} 
-              style={{ flex: 1, minWidth: 100 }} 
+              style={{ flex: 1, minWidth: 80 }} 
               title={`${speed} ステップ/秒`}
+            />
+            <input
+              type="number"
+              min={1}
+              max={10000}
+              value={speed}
+              onChange={e => {
+                const val = parseInt(e.target.value);
+                if (!isNaN(val) && val >= 1 && val <= 10000) {
+                  setSpeed(val);
+                }
+              }}
+              style={{ 
+                width: 60,
+                fontFamily: 'ui-monospace, monospace',
+                fontSize: 13,
+                padding: '4px 8px',
+                background: '#0f1216',
+                border: '1px solid #2a2f36',
+                borderRadius: 4,
+                color: '#e8eaed',
+                textAlign: 'right'
+              }}
+              title="速度を直接入力"
             />
           </div>
 

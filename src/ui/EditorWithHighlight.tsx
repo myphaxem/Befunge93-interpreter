@@ -21,8 +21,8 @@ export default function EditorWithHighlight({ code, onChange, pc, mode }: Props)
 
     // Calculate character position
     // SimpleEditor uses line height and character width without line number gutter
-    const lineHeight = 19; // Line height at font-size 14px
-    const charWidth = 8.4; // Approximate character width for monospace font
+    const lineHeight = 22; // Line height at font-size 16px
+    const charWidth = 9.6; // Approximate character width for monospace font
     
     const top = pc.y * lineHeight + 10; // 10px for padding
     const left = pc.x * charWidth + 10; // 10px for padding
