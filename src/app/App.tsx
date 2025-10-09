@@ -226,33 +226,7 @@ export default function App() {
       const s = e.data;
       if (!s) return;
       
-      // Save current state to history before updating
-      // Save in interpreter mode for all steps (both running and stepping)
-      if (mode === 'interpreter') {
-        setStateHistory(prev => {
-          const newHistory = [...prev, {
-            stack: [...stack],
-            pc: { ...pc },
-            dir: { ...dir },
-            grid: runtimeGrid ? runtimeGrid.map(row => [...row]) : [],
-            textOut,
-            errorOut,
-            status,
-            exitCode,
-            inputQueue: s.inputQueue ? [...s.inputQueue] : [], // Use VM's actual input queue from state
-            stringMode: s.stringMode ?? false,
-            rngSeed: s.rngSeed ?? 1234,
-            halted: s.halted ?? false,
-            waitingInput: s.waitingInput ?? false
-          }];
-          // Keep only last maxHistorySize states
-          if (newHistory.length > maxHistorySize) {
-            newHistory.shift();
-          }
-          return newHistory;
-        });
-      }
-      
+      // Update state first
       if (Array.isArray(s.outputs)) {
         for (const o of s.outputs) {
           if (o.kind === 'text') {
@@ -272,6 +246,42 @@ export default function App() {
       setStack(s.stack ?? []);
       setPC({ x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 });
       setDir({ dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 });
+      
+      // Save state to history AFTER updating (save the state we just received)
+      // This allows us to restore to this exact state later
+      if (mode === 'interpreter') {
+        // We need to capture the textOut and errorOut AFTER they've been updated
+        // So we use the callback form to get the latest values
+        setTextOut(currentTextOut => {
+          setErrorOut(currentErrorOut => {
+            setStateHistory(prev => {
+              const newHistory = [...prev, {
+                stack: s.stack ? [...s.stack] : [],
+                pc: { x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 },
+                dir: { dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 },
+                grid: s.grid ? s.grid.map((row: number[]) => [...row]) : [],
+                textOut: currentTextOut,
+                errorOut: currentErrorOut,
+                status: s.halted ? 'halted' : (s.waitingInput ? 'waiting-input' : (runningRef.current ? 'running' : 'idle')),
+                exitCode: s.exitCode ?? null,
+                inputQueue: s.inputQueue ? [...s.inputQueue] : [],
+                stringMode: s.stringMode ?? false,
+                rngSeed: s.rngSeed ?? 1234,
+                halted: s.halted ?? false,
+                waitingInput: s.waitingInput ?? false
+              }];
+              // Keep only last maxHistorySize states
+              if (newHistory.length > maxHistorySize) {
+                newHistory.shift();
+              }
+              return newHistory;
+            });
+            return currentErrorOut;
+          });
+          return currentTextOut;
+        });
+      }
+      
       if (s.halted) { 
         setStatus('halted'); 
         setExitCode(s.exitCode ?? 0);
