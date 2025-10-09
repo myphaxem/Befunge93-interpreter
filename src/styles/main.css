@@ -219,6 +219,9 @@ body {
     overflow: auto;
     tab-size: 1;
     -moz-tab-size: 1;
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
 }
 
 .simple-editor:focus {

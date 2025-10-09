@@ -1,5 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 
+// Befunge-93 grid constraints
+const MAX_COLS = 80;
+const MAX_ROWS = 25;
+
 export default function SimpleEditor({ 
   code, 
   onChange, 
@@ -11,6 +15,30 @@ export default function SimpleEditor({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Helper function to check if a position is within bounds
+  const isWithinBounds = (line: number, col: number): boolean => {
+    return line < MAX_ROWS && col < MAX_COLS;
+  };
+
+  // Helper function to get cursor line and column
+  const getCursorPosition = (value: string, cursorPos: number): { line: number; col: number } => {
+    const beforeCursor = value.substring(0, cursorPos);
+    const lines = beforeCursor.split('\n');
+    return {
+      line: lines.length - 1,
+      col: lines[lines.length - 1]!.length
+    };
+  };
+
+  // Helper function to validate and constrain value to 80×25
+  const constrainValue = (value: string): string => {
+    const lines = value.split('\n');
+    // Limit to MAX_ROWS lines
+    const constrainedLines = lines.slice(0, MAX_ROWS);
+    // Limit each line to MAX_COLS characters
+    return constrainedLines.map(line => line.substring(0, MAX_COLS)).join('\n');
+  };
+
   // Handle tab key to insert space instead of tab character
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget;
@@ -21,9 +49,16 @@ export default function SimpleEditor({
     if (e.key === 'Tab') {
       e.preventDefault();
       
+      // Check if we're within bounds
+      const cursorPos = getCursorPosition(value, start);
+      if (!isWithinBounds(cursorPos.line, cursorPos.col + 1)) {
+        return; // Ignore if would exceed bounds
+      }
+      
       // Insert a single space at cursor position
       const newValue = value.substring(0, start) + ' ' + value.substring(end);
-      onChange(newValue);
+      const constrained = constrainValue(newValue);
+      onChange(constrained);
       
       // Set cursor position after the inserted space
       setTimeout(() => {
@@ -40,16 +75,24 @@ export default function SimpleEditor({
       const beforeCursor = value.substring(0, start);
       const lastNewlinePos = beforeCursor.lastIndexOf('\n');
       const currentColumn = lastNewlinePos === -1 ? start : start - lastNewlinePos - 1;
+      const lines = value.split('\n');
+      const currentLineIdx = beforeCursor.split('\n').length - 1;
+      
+      // Check if we can add another line
+      if (currentLineIdx >= MAX_ROWS - 1) {
+        return; // Ignore if would exceed max rows
+      }
       
       // Insert newline + spaces to match column (currentColumn - 1, but at least 0)
       const spacesToAdd = Math.max(0, currentColumn - 1);
-      const padding = ' '.repeat(spacesToAdd);
+      const padding = ' '.repeat(Math.min(spacesToAdd, MAX_COLS)); // Constrain padding to max cols
       const newValue = value.substring(0, start) + '\n' + padding + value.substring(end);
-      onChange(newValue);
+      const constrained = constrainValue(newValue);
+      onChange(constrained);
       
       // Set cursor position after newline and padding
       setTimeout(() => {
-        const newPos = start + 1 + spacesToAdd;
+        const newPos = start + 1 + Math.min(spacesToAdd, MAX_COLS);
         textarea.selectionStart = textarea.selectionEnd = newPos;
       }, 0);
       return;
@@ -90,6 +133,12 @@ export default function SimpleEditor({
         }
       }
 
+      // Check if target position is within bounds
+      if (!isWithinBounds(targetLineIdx, targetColumn)) {
+        e.preventDefault();
+        return; // Ignore if would exceed bounds
+      }
+
       if (needsPadding) {
         e.preventDefault();
         
@@ -100,14 +149,15 @@ export default function SimpleEditor({
         newLines[targetLineIdx] = targetLine + ' '.repeat(spacesNeeded);
         
         const newValue = newLines.join('\n');
-        onChange(newValue);
+        const constrained = constrainValue(newValue);
+        onChange(constrained);
         
         // Calculate new cursor position
         let newPos = 0;
         for (let i = 0; i < targetLineIdx; i++) {
-          newPos += newLines[i]!.length + 1; // +1 for newline
+          newPos += Math.min(newLines[i]!.length, MAX_COLS) + 1; // +1 for newline
         }
-        newPos += targetColumn;
+        newPos += Math.min(targetColumn, MAX_COLS);
         
         setTimeout(() => {
           textarea.selectionStart = textarea.selectionEnd = newPos;
@@ -121,7 +171,9 @@ export default function SimpleEditor({
     const value = e.target.value;
     // Replace any tab characters with single space
     const normalized = value.replace(/\t/g, ' ');
-    onChange(normalized);
+    // Constrain to 80x25 grid
+    const constrained = constrainValue(normalized);
+    onChange(constrained);
   };
 
   // Update textarea value when code prop changes
@@ -149,6 +201,7 @@ export default function SimpleEditor({
       autoCapitalize="off"
       autoCorrect="off"
       autoComplete="off"
+      wrap="off"
     />
   );
 }
