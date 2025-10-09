@@ -308,7 +308,6 @@ export default function App() {
       // Clear restore flag after processing message
       if (isRestoringRef.current) {
         isRestoringRef.current = false;
-        console.log('Restore flag cleared');
       }
     }
     worker.addEventListener('message', onMsg);
@@ -453,9 +452,7 @@ export default function App() {
   };
   
   const onStepBack = () => {
-    console.log(`onStepBack called, history length: ${stateHistory.length}`);
     if (stateHistory.length < 2) {
-      console.log('Need at least 2 history entries to step back');
       return;
     }
     
@@ -473,8 +470,6 @@ export default function App() {
       const newHistory = [...prev];
       newHistory.pop(); // Discard current state
       const previousState = newHistory.pop()!; // Get the previous state
-      
-      console.log(`Restoring state: PC=(${previousState.pc.x},${previousState.pc.y}), stack size=${previousState.stack.length}, halted=${previousState.halted}`);
       
       // Restore the state
       setStack(previousState.stack);
