@@ -376,8 +376,9 @@ export default function App() {
       const stepsToRun = Math.floor(accumulatedSteps.current);
       
       if (stepsToRun > 0) {
-        // If breakpoints are set, run one step at a time to ensure we can stop at breakpoints
-        const stepsThisTick = breakpoints.size > 0 ? 1 : stepsToRun;
+        // If breakpoints are set, limit batch size to avoid overshooting
+        // Run in smaller batches so we can check breakpoints more frequently
+        const stepsThisTick = breakpoints.size > 0 ? Math.min(stepsToRun, 10) : stepsToRun;
         worker.postMessage({ type: 'run', steps: stepsThisTick });
         accumulatedSteps.current -= stepsThisTick;
       }
