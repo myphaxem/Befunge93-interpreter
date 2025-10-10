@@ -11,7 +11,7 @@ type Msg =
   | { type: 'load'; code: string; seed?: number; inputQueue?: number[] }
   | { type: 'reset' }
   | { type: 'step' }
-  | { type: 'run'; steps: number }
+  | { type: 'run'; steps: number; breakpoints?: string[] }
   | { type: 'provideInput'; values: number[] }
   | { type: 'restore'; state: { stack: number[]; pc: { x: number; y: number; dx: number; dy: number }; grid: number[][]; inputQueue: number[]; stringMode: boolean; rngSeed: number; halted: boolean; waitingInput: boolean } }
   | { type: 'stop' };
@@ -60,6 +60,7 @@ self.onmessage = (e: MessageEvent<Msg>) => {
       if (!vm) break;
       running = true;
       let steps = msg.steps;
+      const breakpoints = msg.breakpoints ? new Set(msg.breakpoints) : null;
       while (steps-- > 0) {
         const s = vm.step();
         const outs = vm.outputs.splice(0);
@@ -69,6 +70,16 @@ self.onmessage = (e: MessageEvent<Msg>) => {
         // @ts-ignore
         // Send state after EVERY step so UI can save to history
         (self as any).postMessage(toState(s, outs, error));
+        
+        // Check for breakpoint after this step
+        if (breakpoints && s.pc) {
+          const bpKey = `${s.pc.x},${s.pc.y}`;
+          if (breakpoints.has(bpKey)) {
+            // Hit a breakpoint - stop executing remaining steps
+            break;
+          }
+        }
+        
         if (s.halted || s.waitingInput || !running) break;
       }
       break;

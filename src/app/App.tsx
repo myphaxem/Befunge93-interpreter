@@ -295,7 +295,7 @@ export default function App() {
       else setStatus(runningRef.current ? 'running' : 'idle');
       
       // Check for breakpoints
-      if (mode === 'interpreter' && running && !s.halted && !s.waitingInput) {
+      if (mode === 'interpreter' && runningRef.current && !s.halted && !s.waitingInput) {
         const bpKey = `${s.pc?.x ?? 0},${s.pc?.y ?? 0}`;
         if (breakpoints.has(bpKey)) {
           // Hit a breakpoint - pause execution
@@ -376,8 +376,17 @@ export default function App() {
       const stepsToRun = Math.floor(accumulatedSteps.current);
       
       if (stepsToRun > 0) {
-        worker.postMessage({ type: 'run', steps: stepsToRun });
-        accumulatedSteps.current -= stepsToRun;
+        // If breakpoints are set, limit batch size to avoid overshooting
+        // Run in smaller batches so we can check breakpoints more frequently
+        const stepsThisTick = breakpoints.size > 0 ? Math.min(stepsToRun, 10) : stepsToRun;
+        // Pass breakpoints to worker so it can check them during execution
+        const breakpointsArray = breakpoints.size > 0 ? Array.from(breakpoints) : undefined;
+        worker.postMessage({ 
+          type: 'run', 
+          steps: stepsThisTick, 
+          breakpoints: breakpointsArray 
+        });
+        accumulatedSteps.current -= stepsThisTick;
       }
       
       rafRef.current = requestAnimationFrame(tick);

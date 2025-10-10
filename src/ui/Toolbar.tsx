@@ -118,13 +118,26 @@ export default function Toolbar(props: {
           />
           <input
             type="number"
-            min={1}
+            min={0}
             max={10000}
             value={speed}
             onChange={e => {
-              const val = parseInt(e.target.value);
-              if (!isNaN(val) && val >= 1 && val <= 10000) {
-                setSpeed(val);
+              const val = e.target.value;
+              // Allow empty or 0 during input
+              if (val === '' || val === '0') {
+                setSpeed(0);
+              } else {
+                const num = parseInt(val);
+                if (!isNaN(num) && num >= 0 && num <= 10000) {
+                  setSpeed(num);
+                }
+              }
+            }}
+            onBlur={e => {
+              // Round up to 1 if value is 0 or empty on blur
+              const val = e.target.value;
+              if (val === '' || val === '0' || speed === 0) {
+                setSpeed(1);
               }
             }}
             style={{
@@ -236,13 +249,26 @@ export default function Toolbar(props: {
             />
             <input
               type="number"
-              min={1}
+              min={0}
               max={10000}
               value={speed}
               onChange={e => {
-                const val = parseInt(e.target.value);
-                if (!isNaN(val) && val >= 1 && val <= 10000) {
-                  setSpeed(val);
+                const val = e.target.value;
+                // Allow empty or 0 during input
+                if (val === '' || val === '0') {
+                  setSpeed(0);
+                } else {
+                  const num = parseInt(val);
+                  if (!isNaN(num) && num >= 0 && num <= 10000) {
+                    setSpeed(num);
+                  }
+                }
+              }}
+              onBlur={e => {
+                // Round up to 1 if value is 0 or empty on blur
+                const val = e.target.value;
+                if (val === '' || val === '0' || speed === 0) {
+                  setSpeed(1);
                 }
               }}
               style={{ 

@@ -104,6 +104,7 @@ body {
     min-height: calc(5 * 19px + 40px); /* Minimum 5 lines (19px line height) + padding */
     position: relative;
     overflow: auto; /* Allow scrolling when content is smaller than minimum */
+    touch-action: pan-y pan-x;
 }
 
 .editor-container {
@@ -112,6 +113,7 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
+    touch-action: pan-y pan-x;
 }
 
 .io-section {
@@ -222,6 +224,8 @@ body {
     white-space: pre;
     word-wrap: normal;
     overflow-wrap: normal;
+    touch-action: pan-y pan-x;
+    -webkit-overflow-scrolling: touch;
 }
 
 .simple-editor.syntax-highlighted {

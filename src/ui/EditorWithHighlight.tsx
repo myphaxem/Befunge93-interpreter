@@ -41,6 +41,8 @@ function getCharColor(ch: string): string {
 export default function EditorWithHighlight({ code, onChange, pc, mode, breakpoints, onToggleBreakpoint }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [highlightStyle, setHighlightStyle] = useState<React.CSSProperties>({});
+  const preRef = useRef<HTMLPreElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Generate syntax-highlighted HTML for edit mode
   const highlightedCode = useMemo(() => {
@@ -75,6 +77,25 @@ export default function EditorWithHighlight({ code, onChange, pc, mode, breakpoi
     });
   }, [pc, mode]);
 
+  // Sync scroll position between textarea and syntax highlighting background
+  useEffect(() => {
+    if (mode !== 'edit') return;
+
+    const handleScroll = (e: Event) => {
+      const textarea = e.target as HTMLTextAreaElement;
+      if (preRef.current) {
+        preRef.current.scrollTop = textarea.scrollTop;
+        preRef.current.scrollLeft = textarea.scrollLeft;
+      }
+    };
+
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.addEventListener('scroll', handleScroll);
+      return () => textarea.removeEventListener('scroll', handleScroll);
+    }
+  }, [mode]);
+
   // Use grid view in interpreter mode with syntax highlighting
   // In edit mode, show the simple editor (plain text)
   if (mode === 'interpreter') {
@@ -96,6 +117,7 @@ export default function EditorWithHighlight({ code, onChange, pc, mode, breakpoi
       {/* Syntax highlighting background */}
       {mode === 'edit' && (
         <pre
+          ref={preRef}
           style={{
             position: 'absolute',
             top: 0,
@@ -110,7 +132,7 @@ export default function EditorWithHighlight({ code, onChange, pc, mode, breakpoi
             whiteSpace: 'pre',
             overflowWrap: 'normal',
             wordBreak: 'normal',
-            overflow: 'hidden',
+            overflow: 'auto',
             pointerEvents: 'none',
             background: '#1e1e1e',
             color: 'var(--fg)',
@@ -126,6 +148,7 @@ export default function EditorWithHighlight({ code, onChange, pc, mode, breakpoi
           onChange={onChange} 
           readOnly={false}
           className={mode === 'edit' ? 'syntax-highlighted' : ''}
+          textareaRef={textareaRef}
         />
       </div>
     </div>

@@ -8,14 +8,17 @@ export default function SimpleEditor({
   code, 
   onChange, 
   readOnly = false,
-  className = ''
+  className = '',
+  textareaRef: externalRef
 }: { 
   code: string; 
   onChange: (v: string) => void; 
   readOnly?: boolean;
   className?: string;
+  textareaRef?: React.RefObject<HTMLTextAreaElement>;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = externalRef || internalRef;
 
   // Helper function to check if a position is within bounds
   const isWithinBounds = (line: number, col: number): boolean => {
