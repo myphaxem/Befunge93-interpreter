@@ -222,6 +222,8 @@ body {
     white-space: pre;
     word-wrap: normal;
     overflow-wrap: normal;
+    touch-action: pan-y pan-x;
+    -webkit-overflow-scrolling: touch;
 }
 
 .simple-editor.syntax-highlighted {
