@@ -7,11 +7,13 @@ const MAX_ROWS = 25;
 export default function SimpleEditor({ 
   code, 
   onChange, 
-  readOnly = false 
+  readOnly = false,
+  className = ''
 }: { 
   code: string; 
   onChange: (v: string) => void; 
-  readOnly?: boolean; 
+  readOnly?: boolean;
+  className?: string;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -197,7 +199,7 @@ export default function SimpleEditor({
   return (
     <textarea
       ref={textareaRef}
-      className="simple-editor"
+      className={`simple-editor ${className}`}
       value={code}
       onChange={handleChange}
       onKeyDown={handleKeyDown}

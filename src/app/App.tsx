@@ -38,9 +38,15 @@ const APP_STATE_COOKIE = 'befunge_app_state_ts';
 // Global user ID for sync
 let globalUserId: string | null = null;
 
-function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter') {
+function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpreter', breakpoints: Set<string>) {
   try {
-    const state = { code, inputQueue, mode, timestamp: Date.now() };
+    const state = { 
+      code, 
+      inputQueue, 
+      mode, 
+      breakpoints: Array.from(breakpoints),
+      timestamp: Date.now() 
+    };
     localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
     // Also set a cookie with just the timestamp for faster checking
     const d = new Date();
@@ -58,7 +64,7 @@ function saveAppState(code: string, inputQueue: string, mode: 'edit' | 'interpre
   }
 }
 
-function loadAppState(): { code: string; inputQueue: string; mode: 'edit' | 'interpreter' } | null {
+function loadAppState(): { code: string; inputQueue: string; mode: 'edit' | 'interpreter'; breakpoints?: string[] } | null {
   try {
     const raw = localStorage.getItem(APP_STATE_KEY);
     if (!raw) return null;
@@ -105,8 +111,10 @@ export default function App() {
   });
 
   const [textOut, setTextOut] = useState('');
-  const [numOut, setNumOut] = useState<number[]>([]);
   const [errorOut, setErrorOut] = useState('');
+  const textOutRef = useRef('');
+  const errorOutRef = useRef('');
+  const isRestoringRef = useRef(false); // Flag to prevent history saving during restore
   const [stack, setStack] = useState<number[]>([]);
   const [pc, setPC] = useState({ x: 0, y: 0 });
   const [dir, setDir] = useState({ dx: 1, dy: 0 });
@@ -121,20 +129,31 @@ export default function App() {
   const [runtimeGrid, setRuntimeGrid] = useState<number[][] | null>(null);
   const [seed, setSeed] = useState(''); // seed input (empty string means auto)
 
-  // History tracking for step back (store last 100 states)
+  // Breakpoints - stored as a Set of "x,y" strings, loaded from savedState
+  const [breakpoints, setBreakpoints] = useState<Set<string>>(() => {
+    if (savedState?.breakpoints && Array.isArray(savedState.breakpoints)) {
+      return new Set(savedState.breakpoints);
+    }
+    return new Set();
+  });
+
+  // History tracking for step back (store last 10000 states)
   const [stateHistory, setStateHistory] = useState<Array<{
     stack: number[];
     pc: { x: number; y: number };
     dir: { dx: number; dy: number };
     grid: number[][];
     textOut: string;
-    numOut: number[];
     errorOut: string;
     status: string;
     exitCode: number | null;
-    inputQueue: string;
+    inputQueue: number[]; // Store actual VM input queue, not UI text
+    stringMode: boolean;
+    rngSeed: number;
+    halted: boolean;
+    waitingInput: boolean;
   }>>([]);
-  const maxHistorySize = 100;
+  const maxHistorySize = 10000;
 
   // 履歴パネル
   const [showHistory, setShowHistory] = useState(false);
@@ -210,20 +229,52 @@ export default function App() {
       const s = e.data;
       if (!s) return;
       
-      // Save current state to history before updating (only in interpreter mode and not halted)
-      if (mode === 'interpreter' && status !== 'halted' && !running) {
+      // Process outputs and update textOut/errorOut
+      if (Array.isArray(s.outputs)) {
+        for (const o of s.outputs) {
+          if (o.kind === 'text') {
+            textOutRef.current += o.ch;
+          } else {
+            // For numbers, append the number followed by a space (already done in VM)
+            textOutRef.current += o.value.toString();
+          }
+        }
+        setTextOut(textOutRef.current);
+      }
+      if (s.error) {
+        errorOutRef.current += s.error + '\n';
+        setErrorOut(errorOutRef.current);
+      }
+      
+      // Update other state
+      if (s.grid) {
+        setRuntimeGrid(s.grid);
+      }
+      setStack(s.stack ?? []);
+      setPC({ x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 });
+      setDir({ dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 });
+      
+      // Determine status
+      const currentStatus = s.halted ? 'halted' : (s.waitingInput ? 'waiting-input' : (runningRef.current ? 'running' : 'idle'));
+      
+      // Save state to history AFTER updating
+      // Skip if we're currently restoring from history to avoid circular saves
+      if (mode === 'interpreter' && !isRestoringRef.current) {
         setStateHistory(prev => {
           const newHistory = [...prev, {
-            stack: [...stack],
-            pc: { ...pc },
-            dir: { ...dir },
-            grid: runtimeGrid ? runtimeGrid.map(row => [...row]) : [],
-            textOut,
-            numOut: [...numOut],
-            errorOut,
-            status,
-            exitCode,
-            inputQueue: inputQueueText
+            stack: s.stack ? [...s.stack] : [],
+            pc: { x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 },
+            dir: { dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 },
+            grid: s.grid ? s.grid.map((row: number[]) => [...row]) : [],
+            textOut: textOutRef.current,
+            errorOut: errorOutRef.current,
+            status: currentStatus,
+            exitCode: s.exitCode ?? null,
+            inputQueue: s.inputQueue ? [...s.inputQueue] : [],
+            stringMode: s.stringMode ?? false,
+            rngSeed: s.rngSeed ?? 1234,
+            halted: s.halted ?? false,
+            waitingInput: s.waitingInput ?? false
           }];
           // Keep only last maxHistorySize states
           if (newHistory.length > maxHistorySize) {
@@ -233,21 +284,7 @@ export default function App() {
         });
       }
       
-      if (Array.isArray(s.outputs)) {
-        for (const o of s.outputs) {
-          if (o.kind === 'text') setTextOut(prev => prev + o.ch);
-          else setNumOut(prev => [...prev, o.value]);
-        }
-      }
-      if (s.error) {
-        setErrorOut(prev => prev + s.error + '\n');
-      }
-      if (s.grid) {
-        setRuntimeGrid(s.grid);
-      }
-      setStack(s.stack ?? []);
-      setPC({ x: s.pc?.x ?? 0, y: s.pc?.y ?? 0 });
-      setDir({ dx: s.pc?.dx ?? 1, dy: s.pc?.dy ?? 0 });
+      // Update status state
       if (s.halted) { 
         setStatus('halted'); 
         setExitCode(s.exitCode ?? 0);
@@ -256,10 +293,29 @@ export default function App() {
       }
       else if (s.waitingInput) { setStatus('waiting-input'); updateRunning(false); stopLoop(); }
       else setStatus(runningRef.current ? 'running' : 'idle');
+      
+      // Check for breakpoints
+      if (mode === 'interpreter' && running && !s.halted && !s.waitingInput) {
+        const bpKey = `${s.pc?.x ?? 0},${s.pc?.y ?? 0}`;
+        if (breakpoints.has(bpKey)) {
+          // Hit a breakpoint - pause execution
+          updateRunning(false);
+          stopLoop();
+          setStatus('idle');
+        }
+      }
+      
+      // Clear restore flag after a short delay to allow any pending messages to be processed
+      if (isRestoringRef.current) {
+        // Use a timeout to ensure all restore-related messages are processed
+        setTimeout(() => {
+          isRestoringRef.current = false;
+        }, 100);
+      }
     }
     worker.addEventListener('message', onMsg);
     return () => { worker.removeEventListener('message', onMsg); };
-  }, [worker, updateRunning, mode, status, running, stack, pc, dir, runtimeGrid, textOut, numOut, errorOut, exitCode]);
+  }, [worker, updateRunning, mode, status, running, stack, pc, dir, runtimeGrid, textOut, errorOut, exitCode, breakpoints]);
 
   useEffect(() => {
     // URL 共有対応
@@ -297,13 +353,13 @@ export default function App() {
     };
   }, []);
 
-  // Save app state periodically when code, inputQueue, or mode changes
+  // Save app state periodically when code, inputQueue, mode, or breakpoints change
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      saveAppState(code, inputQueueText, mode);
+      saveAppState(code, inputQueueText, mode, breakpoints);
     }, 500); // Debounce by 500ms to avoid too frequent saves
     return () => clearTimeout(timeoutId);
-  }, [code, inputQueueText, mode]);
+  }, [code, inputQueueText, mode, breakpoints]);
 
   const startLoop = () => {
     if (rafRef.current != null) return;
@@ -344,8 +400,9 @@ export default function App() {
   };
 
   const onRun = () => {
+    textOutRef.current = '';
+    errorOutRef.current = '';
     setTextOut(''); 
-    setNumOut([]); 
     setErrorOut('');
     setExitCode(null);
     updateRunning(true);
@@ -359,8 +416,9 @@ export default function App() {
     stopLoop(); 
     worker.postMessage({ type: 'reset' }); 
     // Clear output states on reset
+    textOutRef.current = '';
+    errorOutRef.current = '';
     setTextOut('');
-    setNumOut([]);
     setErrorOut('');
     setExitCode(null);
     setStatus('idle');
@@ -382,8 +440,9 @@ export default function App() {
       // Load current code when stepping from edit mode or after execution has halted
       worker.postMessage({ type: 'load', code, seed: getSeedValue(), inputQueue: parseInputQueue(inputQueueText) });
       // Clear output states when reloading
+      textOutRef.current = '';
+      errorOutRef.current = '';
       setTextOut('');
-      setNumOut([]);
       setErrorOut('');
       setExitCode(null);
       setStatus('idle');
@@ -396,41 +455,80 @@ export default function App() {
   };
   
   const onStepBack = () => {
-    if (stateHistory.length === 0) return;
+    if (stateHistory.length < 1) {
+      return;
+    }
     
-    // Pop the last state from history and restore it
+    // Stop execution first for safety
+    updateRunning(false);
+    stopLoop();
+    
+    // Set flag to prevent history saving during restore
+    isRestoringRef.current = true;
+    
+    // Pop state(s) from history until we find one that's different from current state
+    // This handles cases where the last saved state is the same as the current displayed state
     setStateHistory(prev => {
-      if (prev.length === 0) return prev;
+      if (prev.length < 1) return prev;
       const newHistory = [...prev];
-      const lastState = newHistory.pop()!;
       
-      // Restore the state
-      setStack(lastState.stack);
-      setPC(lastState.pc);
-      setDir(lastState.dir);
-      setRuntimeGrid(lastState.grid);
-      setTextOut(lastState.textOut);
-      setNumOut(lastState.numOut);
-      setErrorOut(lastState.errorOut);
-      setStatus(lastState.status);
-      setExitCode(lastState.exitCode);
-      setInputQueueText(lastState.inputQueue);
+      // Get current state for comparison
+      const currentPC = `${pc.x},${pc.y}`;
+      const currentStackSize = stack.length;
       
-      // Restore VM state in worker
-      worker.postMessage({ 
-        type: 'restore', 
-        state: { 
-          stack: lastState.stack, 
-          pc: { 
-            x: lastState.pc.x, 
-            y: lastState.pc.y, 
-            dx: lastState.dir.dx, 
-            dy: lastState.dir.dy 
-          }, 
-          grid: lastState.grid,
-          inputQueue: parseInputQueue(lastState.inputQueue)
-        } 
-      });
+      // Pop until we find a different state (or run out of history)
+      let previousState = null;
+      while (newHistory.length > 0) {
+        previousState = newHistory.pop()!;
+        const historyPC = `${previousState.pc.x},${previousState.pc.y}`;
+        const historyStackSize = previousState.stack.length;
+        
+        // If this state is different from current, use it
+        if (historyPC !== currentPC || historyStackSize !== currentStackSize) {
+          break;
+        }
+        // Otherwise, keep popping (this state is same as current, skip it)
+        previousState = null;
+      }
+      
+      // If we found a valid previous state, restore it
+      if (previousState) {
+        // Restore the state
+        setStack(previousState.stack);
+        setPC(previousState.pc);
+        setDir(previousState.dir);
+        setRuntimeGrid(previousState.grid);
+        setTextOut(previousState.textOut);
+        textOutRef.current = previousState.textOut;
+        setErrorOut(previousState.errorOut);
+        errorOutRef.current = previousState.errorOut;
+        setStatus(previousState.status);
+        setExitCode(previousState.exitCode);
+        // Don't change inputQueueText (it's for user editing), keep it as is
+        
+        // Restore VM state in worker with all necessary fields
+        worker.postMessage({ 
+          type: 'restore', 
+          state: { 
+            stack: previousState.stack, 
+            pc: { 
+              x: previousState.pc.x, 
+              y: previousState.pc.y, 
+              dx: previousState.dir.dx, 
+              dy: previousState.dir.dy 
+            }, 
+            grid: previousState.grid,
+            inputQueue: previousState.inputQueue, // Use actual VM input queue from history
+            stringMode: previousState.stringMode,
+            rngSeed: previousState.rngSeed,
+            halted: previousState.halted,
+            waitingInput: previousState.waitingInput
+          } 
+        });
+      } else {
+        // No different state found, reset the flag
+        isRestoringRef.current = false;
+      }
       
       return newHistory;
     });
@@ -467,14 +565,24 @@ export default function App() {
     });
   };
 
+  // Toggle breakpoint handler
+  const onToggleBreakpoint = (x: number, y: number) => {
+    setBreakpoints(prev => {
+      const newBreakpoints = new Set(prev);
+      const key = `${x},${y}`;
+      if (newBreakpoints.has(key)) {
+        newBreakpoints.delete(key);
+      } else {
+        newBreakpoints.add(key);
+      }
+      return newBreakpoints;
+    });
+  };
+
   // 統合された出力文字列
   const combinedOutput = useMemo(() => {
-    let result = textOut;
-    if (numOut.length > 0) {
-      result += numOut.join(' ');
-    }
-    return result;
-  }, [textOut, numOut]);
+    return textOut;
+  }, [textOut]);
 
   // Authentication handlers
   const handleLogin = async () => {
@@ -552,7 +660,9 @@ export default function App() {
               code={mode === 'interpreter' && runtimeGrid ? runtimeGrid.map(r => String.fromCharCode(...r)).join('\n') : code} 
               onChange={setCode} 
               pc={pc} 
-              mode={mode} 
+              mode={mode}
+              breakpoints={breakpoints}
+              onToggleBreakpoint={onToggleBreakpoint}
             />
           </div>
         </div>

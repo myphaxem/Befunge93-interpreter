@@ -8,6 +8,9 @@ export type VMState = {
   stack: number[];
   exitCode?: number;
   grid?: number[][]; // Include grid for dynamic updates
+  stringMode?: boolean; // Include string mode state
+  inputQueue?: number[]; // Include input queue state
+  rngSeed?: number; // Include RNG seed for deterministic restoration
 };
 
 export class RNG {
@@ -17,6 +20,8 @@ export class RNG {
     let x = this.seed;
     x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 0x100000000; }
   pick<T>(arr: T[]): T { return arr[Math.floor(this.next() * arr.length)]!; }
+  getSeed() { return this.seed; }
+  setSeed(seed: number) { this.seed = seed >>> 0; }
 }
 
 export class BefungeVM {
@@ -66,8 +71,9 @@ export class BefungeVM {
 
   private outText(ch: number) { this.outputs.push({ kind: 'text', ch: String.fromCharCode(ch & 0xff) }); }
   private outNum(v: number) { 
-    this.outputs.push({ kind: 'number', value: Math.trunc(v) }); 
-    this.outputs.push({ kind: 'text', ch: ' ' }); // space after number per reference implementation
+    // Output the number as text followed by a space
+    this.outputs.push({ kind: 'text', ch: Math.trunc(v).toString() }); 
+    this.outputs.push({ kind: 'text', ch: ' ' });
   }
 
   private needInt(): number {
@@ -258,7 +264,10 @@ export class BefungeVM {
       pc: { x: this.x, y: this.y, dx: this.dx, dy: this.dy },
       stack: [...this.stack],
       exitCode: this.exitCode,
-      grid: this.grid.map(row => [...row]) // Deep copy grid
+      grid: this.grid.map(row => [...row]), // Deep copy grid
+      stringMode: this.stringMode,
+      inputQueue: [...this.inputQueue],
+      rngSeed: this.rng.getSeed()
     };
   }
 }
