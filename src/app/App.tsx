@@ -376,8 +376,10 @@ export default function App() {
       const stepsToRun = Math.floor(accumulatedSteps.current);
       
       if (stepsToRun > 0) {
-        worker.postMessage({ type: 'run', steps: stepsToRun });
-        accumulatedSteps.current -= stepsToRun;
+        // If breakpoints are set, run one step at a time to ensure we can stop at breakpoints
+        const stepsThisTick = breakpoints.size > 0 ? 1 : stepsToRun;
+        worker.postMessage({ type: 'run', steps: stepsThisTick });
+        accumulatedSteps.current -= stepsThisTick;
       }
       
       rafRef.current = requestAnimationFrame(tick);
