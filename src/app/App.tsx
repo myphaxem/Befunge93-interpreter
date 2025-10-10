@@ -305,9 +305,12 @@ export default function App() {
         }
       }
       
-      // Clear restore flag after processing message
+      // Clear restore flag after a short delay to allow any pending messages to be processed
       if (isRestoringRef.current) {
-        isRestoringRef.current = false;
+        // Use a timeout to ensure all restore-related messages are processed
+        setTimeout(() => {
+          isRestoringRef.current = false;
+        }, 100);
       }
     }
     worker.addEventListener('message', onMsg);
@@ -452,7 +455,7 @@ export default function App() {
   };
   
   const onStepBack = () => {
-    if (stateHistory.length < 2) {
+    if (stateHistory.length < 1) {
       return;
     }
     
@@ -463,46 +466,69 @@ export default function App() {
     // Set flag to prevent history saving during restore
     isRestoringRef.current = true;
     
-    // Pop TWO states: the current state and the previous state
-    // We restore to the previous state (not the current one)
+    // Pop state(s) from history until we find one that's different from current state
+    // This handles cases where the last saved state is the same as the current displayed state
     setStateHistory(prev => {
-      if (prev.length < 2) return prev;
+      if (prev.length < 1) return prev;
       const newHistory = [...prev];
-      newHistory.pop(); // Discard current state
-      const previousState = newHistory.pop()!; // Get the previous state
       
-      // Restore the state
-      setStack(previousState.stack);
-      setPC(previousState.pc);
-      setDir(previousState.dir);
-      setRuntimeGrid(previousState.grid);
-      setTextOut(previousState.textOut);
-      textOutRef.current = previousState.textOut;
-      setErrorOut(previousState.errorOut);
-      errorOutRef.current = previousState.errorOut;
-      setStatus(previousState.status);
-      setExitCode(previousState.exitCode);
-      // Don't change inputQueueText (it's for user editing), keep it as is
+      // Get current state for comparison
+      const currentPC = `${pc.x},${pc.y}`;
+      const currentStackSize = stack.length;
       
-      // Restore VM state in worker with all necessary fields
-      worker.postMessage({ 
-        type: 'restore', 
-        state: { 
-          stack: previousState.stack, 
-          pc: { 
-            x: previousState.pc.x, 
-            y: previousState.pc.y, 
-            dx: previousState.dir.dx, 
-            dy: previousState.dir.dy 
-          }, 
-          grid: previousState.grid,
-          inputQueue: previousState.inputQueue, // Use actual VM input queue from history
-          stringMode: previousState.stringMode,
-          rngSeed: previousState.rngSeed,
-          halted: previousState.halted,
-          waitingInput: previousState.waitingInput
-        } 
-      });
+      // Pop until we find a different state (or run out of history)
+      let previousState = null;
+      while (newHistory.length > 0) {
+        previousState = newHistory.pop()!;
+        const historyPC = `${previousState.pc.x},${previousState.pc.y}`;
+        const historyStackSize = previousState.stack.length;
+        
+        // If this state is different from current, use it
+        if (historyPC !== currentPC || historyStackSize !== currentStackSize) {
+          break;
+        }
+        // Otherwise, keep popping (this state is same as current, skip it)
+        previousState = null;
+      }
+      
+      // If we found a valid previous state, restore it
+      if (previousState) {
+        // Restore the state
+        setStack(previousState.stack);
+        setPC(previousState.pc);
+        setDir(previousState.dir);
+        setRuntimeGrid(previousState.grid);
+        setTextOut(previousState.textOut);
+        textOutRef.current = previousState.textOut;
+        setErrorOut(previousState.errorOut);
+        errorOutRef.current = previousState.errorOut;
+        setStatus(previousState.status);
+        setExitCode(previousState.exitCode);
+        // Don't change inputQueueText (it's for user editing), keep it as is
+        
+        // Restore VM state in worker with all necessary fields
+        worker.postMessage({ 
+          type: 'restore', 
+          state: { 
+            stack: previousState.stack, 
+            pc: { 
+              x: previousState.pc.x, 
+              y: previousState.pc.y, 
+              dx: previousState.dir.dx, 
+              dy: previousState.dir.dy 
+            }, 
+            grid: previousState.grid,
+            inputQueue: previousState.inputQueue, // Use actual VM input queue from history
+            stringMode: previousState.stringMode,
+            rngSeed: previousState.rngSeed,
+            halted: previousState.halted,
+            waitingInput: previousState.waitingInput
+          } 
+        });
+      } else {
+        // No different state found, reset the flag
+        isRestoringRef.current = false;
+      }
       
       return newHistory;
     });
